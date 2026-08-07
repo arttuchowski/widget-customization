@@ -1,0 +1,14 @@
+{
+  "platform": {
+    "showMainSidebar": true,
+    "showMerchantTopHeader": false,
+    "showBreadcrumbs": true,
+    "layoutNotes": "Default platform console layout with left navigation"
+  },
+  "merchant": {
+    "showMainSidebar": false,
+    "showMerchantTopHeader": true,
+    "showBreadcrumbs": false,
+    "layoutNotes": "Merchant-facing layout with top header and no left sidebar"
+  }
+}

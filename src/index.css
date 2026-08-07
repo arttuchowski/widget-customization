@@ -1,0 +1,155 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 224 14% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 14% 12%;
+    --primary: 223 78% 55%;
+    --primary-foreground: 210 40% 98%;
+    --muted: 220 20% 96%;
+    --muted-foreground: 220 10% 46%;
+    --accent: 220 20% 96%;
+    --accent-foreground: 224 14% 12%;
+    --border: 218 23% 90%;
+    --input: 218 23% 88%;
+    --ring: 223 78% 55%;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 10px;
+    --radius: var(--radius-md);
+
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+
+    --sidebar-padding-x: var(--space-4);
+    --sidebar-padding-y: var(--space-3);
+    --sidebar-nav-padding-x: var(--space-2);
+    --sidebar-nav-item-padding-x: var(--space-3);
+    --sidebar-nav-item-padding-y: var(--space-2);
+    --sidebar-profile-padding-x: var(--space-3);
+    --sidebar-profile-padding-y: var(--space-3);
+    --sidebar-profile-inner-padding: var(--space-1);
+    --sidebar-profile-trigger-padding-x: var(--space-2);
+    --sidebar-profile-trigger-padding-y: var(--space-2);
+    --sidebar-profile-menu-offset: 68px;
+    --sidebar-profile-menu-width: 220px;
+    --sidebar-profile-menu-padding: var(--space-1);
+    --sidebar-nav-item-gap: var(--space-2);
+    --sidebar-logo-gap: var(--space-2);
+    --logo-size: 32px;
+    --sidebar-width-expanded: 256px;
+    --sidebar-width-collapsed: 72px;
+
+    --sidebar-bg: #fbfcfe;
+    --sidebar-menu-bg: #ffffff;
+    --sidebar-border-color: #d9e2ee;
+    --sidebar-border-color-strong: #cdd8e7;
+    --sidebar-item-hover-bg: #eaf0fa;
+    --sidebar-item-active-bg: #dde7f7;
+    --sidebar-text-primary: #1e293b;
+    --sidebar-text-secondary: #475569;
+    --sidebar-text-disabled: #64748b;
+    --sidebar-focus-ring: #3465eb;
+
+    --color-primary: #3465eb;
+    --color-background: #ffffff;
+
+    --widget-color-surface: var(--color-background);
+    --widget-color-primary: var(--color-primary);
+    --widget-color-border: hsl(var(--border));
+    --widget-text-primary: hsl(var(--foreground));
+    --widget-text-muted: hsl(var(--muted-foreground));
+    --widget-text-on-primary: #ffffff;
+    --widget-font-family: 'DM Sans', sans-serif;
+    --widget-font-weight-regular: 400;
+    --widget-font-weight-semibold: 600;
+    --widget-font-size-caption: 12px;
+    --widget-font-size-body: 14px;
+    --widget-heading-font-family: var(--widget-font-family);
+    --widget-heading-font-weight: var(--widget-font-weight-semibold);
+    --widget-heading-font-size: 18px;
+    --widget-heading-line-height: 1.22;
+    --widget-line-height-tight: 1.12;
+    --widget-line-height-snug: 1.2;
+    --widget-line-height-normal: 1.4;
+    --widget-space-sm: 8px;
+    --widget-space-md: 12px;
+    --widget-space-lg: 16px;
+    --widget-radius-pill: 9999px;
+    --widget-radius-card: 16px;
+    --widget-control-height-input: 32px;
+    --widget-control-height-button: 40px;
+    --widget-option-padding-x: 16px;
+    --widget-option-padding-y: 10px;
+    --widget-option-padding-x-compact: 12px;
+    --widget-option-padding-y-compact: 10px;
+    --widget-form-ring-width: 3px;
+    --widget-form-ring-opacity: 0.1;
+    --widget-resize-handle-width: 16px;
+    --widget-resize-handle-height: 40px;
+    --widget-resize-handle-border: var(--widget-color-border);
+    --widget-resize-handle-bg: var(--widget-color-surface);
+
+    --widget-status-warning-bg: #fffbeb;
+    --widget-status-warning-border: #fcd34d;
+    --widget-status-warning-text: #92400e;
+  }
+
+  .widget-preview-instance {
+    --widget-color-surface: var(--color-background);
+    --widget-color-primary: var(--color-primary);
+    --widget-color-border: hsl(var(--border));
+    --widget-text-primary: hsl(var(--foreground));
+    --widget-text-muted: hsl(var(--muted-foreground));
+    --widget-text-on-primary: #ffffff;
+    --widget-font-family: 'DM Sans', sans-serif;
+    --widget-font-weight-regular: 400;
+    --widget-font-weight-semibold: 600;
+    --widget-font-size-caption: 12px;
+    --widget-font-size-body: 14px;
+    --widget-heading-font-family: var(--widget-font-family);
+    --widget-heading-font-weight: var(--widget-font-weight-semibold);
+    --widget-heading-font-size: 18px;
+    --widget-heading-line-height: 1.22;
+    --widget-line-height-tight: 1.12;
+    --widget-line-height-snug: 1.2;
+    --widget-line-height-normal: 1.4;
+    --widget-space-sm: 8px;
+    --widget-space-md: 12px;
+    --widget-space-lg: 16px;
+    --widget-radius-pill: 9999px;
+    --widget-radius-card: 16px;
+    --widget-control-height-input: 32px;
+    --widget-control-height-button: 40px;
+    --widget-option-padding-x: 16px;
+    --widget-option-padding-y: 10px;
+    --widget-option-padding-x-compact: 12px;
+    --widget-option-padding-y-compact: 10px;
+    --widget-form-ring-width: 3px;
+    --widget-form-ring-opacity: 0.1;
+    --widget-resize-handle-width: 16px;
+    --widget-resize-handle-height: 40px;
+    --widget-resize-handle-border: var(--widget-color-border);
+    --widget-resize-handle-bg: var(--widget-color-surface);
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply m-0 bg-background font-sans text-foreground antialiased;
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+}
