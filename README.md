@@ -14,7 +14,7 @@ This project reproduces the Figma screen (node: `393:1131`) as a React + TypeScr
 ## Requirements
 
 - Node.js 20+ (LTS recommended)
-- npm 10+
+- npm 10+![alt text](image.png)
 
 Check versions:
 

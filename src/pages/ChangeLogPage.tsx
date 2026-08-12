@@ -3,6 +3,56 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 const entries = [
   {
+    date: '2026-08-07',
+    title: 'Tonal button variant added to button style',
+    items: [
+      'Added a third Button type option named Tonal in the Widget Button style section.',
+      'Connected Tonal to payment option rows and the Pay by new card trigger using a light Primary-derived background with Text Primary content.',
+      'Extended the button type selector UI with a dedicated Tonal preview card and supporting documentation.',
+    ],
+  },
+  {
+    date: '2026-08-07',
+    title: 'Appearance token expansion and widget control tokenization',
+    items: [
+      'Added an On primary text muted color token to Appearance so secondary text on primary backgrounds is configured explicitly instead of derived implicitly.',
+      'Updated Filled button styling to consume Appearance tokens directly for both main and muted text layers.',
+      'Added WCAG-aware synchronization for on-primary text tokens so inaccessible values are corrected to compliant colors in the Appearance model.',
+      'Tokenized widget preview inputs and switch states so form controls inherit widget-specific border, surface, text, placeholder, and focus-ring colors.',
+    ],
+  },
+  {
+    date: '2026-08-07',
+    title: 'Button style global controls and preview wiring',
+    items: [
+      'Implemented Widget Button style section with global scope applied across widget buttons.',
+      'Added Button type controls (Outline/Filled) and connected them to payment option row rendering.',
+      'Added Border radius controls with synced number input and slider in 0-64px range.',
+      'Applied button radius consistently to payment option rows and action buttons without changing existing hierarchy semantics.',
+      'Added section reset behavior and documented new capabilities in /documentation.',
+    ],
+  },
+  {
+    date: '2026-08-07',
+    title: 'Documentation recovery and nomenclature standardization',
+    items: [
+      'Restored and expanded /documentation content after scope drift, including screen structure, control behavior, and implementation notes.',
+      'Added naming conventions for option sections and full-screen areas (Widget Customization Panel, Widget Navigation, Widget Preview Panel, Widget Resize Handle, Widget Card Preview).',
+      'Extended documentation with dedicated blocks for Typography behavior, Widget Preview sticky rules, and accessibility safeguards.',
+    ],
+  },
+  {
+    date: '2026-08-07',
+    title: 'Typography controls and preview interaction stabilization',
+    items: [
+      'Implemented Typography controls with Google Fonts integration and live font application to widget tokens.',
+      'Added searchable font dropdown with category filters (All fonts, Sans Serif, Serif), selected-state highlighting, and Preview sample text.',
+      'Refined dropdown visuals for icon consistency (outline chevron) and improved vertical layout with full-width search input.',
+      'Stabilized Widget Preview sticky behavior during long scroll and while toggling Pay by new card, preventing preview jump-to-top regressions.',
+      'Repositioned resize drag handle back to the seam between Widget Customization and Widget Preview panels after sticky refactor.',
+    ],
+  },
+  {
     date: '2026-08-06',
     title: 'Sidebar UX and navigation hardening',
     items: [

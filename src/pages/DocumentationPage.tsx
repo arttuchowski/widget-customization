@@ -17,6 +17,42 @@ const navigationBehaviorItems = [
   'Sticky offsets are used for top header and section alignment.',
 ]
 
+const widgetSectionNomenclature = [
+  { label: 'Elements visibility', id: 'widget-elements-visibility' },
+  { label: 'Button style', id: 'widget-button-style' },
+  { label: 'Appearance', id: 'widget-theme' },
+  { label: 'Typography', id: 'widget-typography' },
+  { label: 'Input style', id: 'widget-input-style' },
+  { label: 'Density', id: 'widget-density' },
+]
+
+const screenAreaNomenclature = [
+  {
+    term: 'Widget Customization Screen',
+    description: 'Whole page on route / that contains control panels and live preview.',
+  },
+  {
+    term: 'Widget Customization Panel',
+    description: 'Left-side configuration area that contains all option sections.',
+  },
+  {
+    term: 'Widget Navigation',
+    description: 'Options list used to navigate between section anchors in customization panel.',
+  },
+  {
+    term: 'Widget Preview Panel',
+    description: 'Right-side sticky panel showing real-time widget result.',
+  },
+  {
+    term: 'Widget Resize Handle',
+    description: 'Drag control on the seam between customization and preview panels, used to change preview width.',
+  },
+  {
+    term: 'Widget Card Preview',
+    description: 'Rendered payment widget card displayed inside Widget Preview Panel.',
+  },
+]
+
 const elementsVisibilityOptions = [
   {
     title: 'Set up wallet',
@@ -47,6 +83,7 @@ const appearanceControls = [
   'Text primary',
   'Text muted',
   'On primary text',
+  'On primary text muted',
 ]
 
 const typographyCapabilities = [
@@ -58,6 +95,15 @@ const typographyCapabilities = [
   'Reset section restores default typography selection.',
 ]
 
+const buttonStyleCapabilities = [
+  'Single configuration scope applies to all widget buttons at once.',
+  'Button type switch supports Outline, Filled, and Tonal modes for payment option rows.',
+  'Border radius control combines number input and slider range from 0 to 64px.',
+  'Tonal mode uses a light Primary-derived background while keeping Text Primary for content.',
+  'Reset section restores default button type and radius values.',
+  'Primary/secondary action hierarchy and color semantics remain controlled by Appearance settings.',
+]
+
 const previewBehaviorItems = [
   'Preview panel remains sticky during page scroll to keep live result visible.',
   'Opening Pay by new card does not switch preview positioning mode (prevents scroll jumps).',
@@ -67,9 +113,10 @@ const previewBehaviorItems = [
 
 const accessibilityAndQualityItems = [
   'WCAG contrast checks are displayed for key text and background combinations.',
-  'Appearance validation provides inline hints and suggested accessible color replacements.',
+  'Appearance validation provides inline hints and auto-corrects on-primary text tokens to WCAG-compliant values when needed.',
   'Hex color input uses draft typing and applies only when value is valid.',
   'Controls include semantic labels and interactive states consistent with keyboard usage.',
+  'Widget preview form controls such as inputs and switch inherit widget-scoped color tokens instead of fixed base colors.',
 ]
 
 export function DocumentationPage() {
@@ -100,6 +147,28 @@ export function DocumentationPage() {
               <ul className="list-disc space-y-1 pl-5">
                 {navigationBehaviorItems.map((item) => (
                   <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <p className="mb-2 font-semibold">Section naming convention</p>
+              <ul className="list-disc space-y-1 pl-5">
+                {widgetSectionNomenclature.map((section) => (
+                  <li key={section.id}>
+                    <span className="font-semibold">{section.label}</span>: #{section.id}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <p className="mb-2 font-semibold">Screen area naming convention</p>
+              <ul className="list-disc space-y-1 pl-5">
+                {screenAreaNomenclature.map((item) => (
+                  <li key={item.term}>
+                    <span className="font-semibold">{item.term}</span>: {item.description}
+                  </li>
                 ))}
               </ul>
             </div>
@@ -189,6 +258,22 @@ export function DocumentationPage() {
               <p className="mb-2 font-semibold">Capabilities</p>
               <ul className="list-disc space-y-1 pl-5">
                 {typographyCapabilities.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Button style</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5 text-sm text-[#1f2430]">
+            <div>
+              <p className="mb-2 font-semibold">Capabilities</p>
+              <ul className="list-disc space-y-1 pl-5">
+                {buttonStyleCapabilities.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
               </ul>

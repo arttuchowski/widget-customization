@@ -12,14 +12,13 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { SidebarNav, SidebarNavButton } from '@/components/ui/sidebar'
 import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const mainTabs = ['Dashboard', 'Transactions', 'Settings', 'PSP Settings', 'User Management', 'Notifications', 'Widget Customization']
 const widgetDesignSections = [
   { id: 'widget-elements-visibility', label: 'Elements visibility' },
+  { id: 'widget-button-style', label: 'Button style' },
   { id: 'widget-theme', label: 'Appearance' },
   { id: 'widget-typography', label: 'Typography' },
-  { id: 'widget-button-style', label: 'Button style' },
   { id: 'widget-input-style', label: 'Input style' },
   { id: 'widget-density', label: 'Density' },
 ]
@@ -55,9 +54,11 @@ const defaultWidgetTheme = {
   primary: '#3465eb',
   surface: '#ffffff',
   border: '#d8e1ee',
+  inputFilledSurface: '#eef3fa',
   textPrimary: '#111827',
   textMuted: '#64748b',
   textOnPrimary: '#ffffff',
+  textOnPrimaryMuted: '#ffffff',
 }
 
 type WidgetTypographyCategory = 'sans-serif' | 'serif'
@@ -185,6 +186,31 @@ const widgetTypographyOptions = [
 ] as const
 
 const defaultWidgetTypographyId = widgetTypographyOptions[0].id
+type WidgetButtonType = 'outline' | 'filled' | 'tonal'
+type WidgetInputType = 'outline' | 'filled'
+type WidgetDensityPreset = 'compact' | 'comfortable' | 'spacius'
+
+const defaultWidgetButtonStyle = {
+  type: 'outline' as WidgetButtonType,
+  radius: 64,
+}
+
+const defaultWidgetInputStyle = {
+  type: 'outline' as WidgetInputType,
+  radius: 8,
+}
+
+const defaultWidgetSurfaceStyle = {
+  radius: 16,
+}
+
+const widgetDensityPresetOptions = [
+  { id: 'compact' as const, label: 'Compact', horizontalPadding: 16, verticalSpacing: 10 },
+  { id: 'comfortable' as const, label: 'Comfortable', horizontalPadding: 20, verticalSpacing: 12 },
+  { id: 'spacius' as const, label: 'Spacius', horizontalPadding: 24, verticalSpacing: 16 },
+]
+
+const defaultWidgetDensityPreset: WidgetDensityPreset = 'comfortable'
 
 const WCAG_AA_TEXT_CONTRAST = 4.5
 
@@ -205,6 +231,25 @@ const normalizeHexColor = (value: string): string | null => {
   }
 
   return `#${hex.toLowerCase()}`
+}
+
+const normalizeColorToHex = (value: string): string | null => {
+  const normalizedHex = normalizeHexColor(value)
+  if (normalizedHex) {
+    return normalizedHex
+  }
+
+  const rgbMatch = /^rgba?\(\s*(\d{1,3})\s*[,\s]\s*(\d{1,3})\s*[,\s]\s*(\d{1,3})(?:\s*[,/]\s*(?:\d*\.?\d+%?))?\s*\)$/i.exec(value.trim())
+  if (!rgbMatch) {
+    return null
+  }
+
+  const channels = rgbMatch.slice(1, 4).map((channel) => Number.parseInt(channel, 10))
+  if (channels.some((channel) => Number.isNaN(channel) || channel < 0 || channel > 255)) {
+    return null
+  }
+
+  return rgbToHex(channels[0], channels[1], channels[2])
 }
 
 const hexToRgb = (hex: string): [number, number, number] => {
@@ -234,8 +279,8 @@ const relativeLuminance = (hex: string): number => {
 }
 
 const getContrastRatio = (firstHex: string, secondHex: string): number | null => {
-  const normalizedFirst = normalizeHexColor(firstHex)
-  const normalizedSecond = normalizeHexColor(secondHex)
+  const normalizedFirst = normalizeColorToHex(firstHex)
+  const normalizedSecond = normalizeColorToHex(secondHex)
   if (!normalizedFirst || !normalizedSecond) {
     return null
   }
@@ -266,6 +311,19 @@ const rgbDistance = (first: [number, number, number], second: [number, number, n
   const greenDelta = first[1] - second[1]
   const blueDelta = first[2] - second[2]
   return Math.sqrt(redDelta ** 2 + greenDelta ** 2 + blueDelta ** 2)
+}
+
+const compositeHexOverHex = (overlayHex: string, baseHex: string, alpha: number): string | null => {
+  const normalizedOverlay = normalizeColorToHex(overlayHex)
+  const normalizedBase = normalizeColorToHex(baseHex)
+  if (!normalizedOverlay || !normalizedBase) {
+    return null
+  }
+
+  const overlayRgb = hexToRgb(normalizedOverlay)
+  const baseRgb = hexToRgb(normalizedBase)
+  const compositedRgb = mixRgb(baseRgb, overlayRgb, Math.max(0, Math.min(1, alpha)))
+  return rgbToHex(compositedRgb[0], compositedRgb[1], compositedRgb[2])
 }
 
 const findNearestCompliantTextColor = (
@@ -328,6 +386,101 @@ const findNearestCompliantTextColor = (
   return candidates[0].color
 }
 
+const findNearestCompliantBackgroundColor = (
+  currentBackgroundHex: string,
+  textHexes: string[],
+  minContrastRatio: number,
+): string | null => {
+  const normalizedBackground = normalizeHexColor(currentBackgroundHex)
+  if (!normalizedBackground) {
+    return null
+  }
+
+  const normalizedTextHexes = textHexes
+    .map((value) => normalizeHexColor(value))
+    .filter((value): value is string => value !== null)
+
+  if (normalizedTextHexes.length !== textHexes.length) {
+    return null
+  }
+
+  const isCompliantForAllTexts = (backgroundHex: string): boolean => {
+    return normalizedTextHexes.every((textHex) => {
+      const contrastRatio = getContrastRatio(backgroundHex, textHex)
+      return contrastRatio !== null && contrastRatio >= minContrastRatio
+    })
+  }
+
+  if (isCompliantForAllTexts(normalizedBackground)) {
+    return normalizedBackground
+  }
+
+  const sourceRgb = hexToRgb(normalizedBackground)
+  const candidateTargets: Array<[number, number, number]> = [
+    [255, 255, 255],
+    [0, 0, 0],
+  ]
+  const candidates: Array<{ color: string; distance: number }> = []
+
+  for (const targetRgb of candidateTargets) {
+    const targetHex = rgbToHex(targetRgb[0], targetRgb[1], targetRgb[2])
+    if (!isCompliantForAllTexts(targetHex)) {
+      continue
+    }
+
+    let left = 0
+    let right = 1
+
+    for (let iteration = 0; iteration < 24; iteration += 1) {
+      const mid = (left + right) / 2
+      const midRgb = mixRgb(sourceRgb, targetRgb, mid)
+      const midHex = rgbToHex(midRgb[0], midRgb[1], midRgb[2])
+
+      if (isCompliantForAllTexts(midHex)) {
+        right = mid
+      } else {
+        left = mid
+      }
+    }
+
+    const candidateRgb = mixRgb(sourceRgb, targetRgb, right)
+    const candidateHex = rgbToHex(candidateRgb[0], candidateRgb[1], candidateRgb[2])
+    candidates.push({
+      color: candidateHex,
+      distance: rgbDistance(sourceRgb, candidateRgb),
+    })
+  }
+
+  if (candidates.length === 0) {
+    return null
+  }
+
+  candidates.sort((first, second) => first.distance - second.distance)
+  return candidates[0].color
+}
+
+const deriveInputFilledSurfaceFromPrimary = (
+  primaryHex: string,
+  textPrimaryHex: string,
+  textMutedHex: string,
+): string => {
+  const normalizedPrimary = normalizeHexColor(primaryHex)
+  if (!normalizedPrimary) {
+    return defaultWidgetTheme.inputFilledSurface
+  }
+
+  const primaryRgb = hexToRgb(normalizedPrimary)
+  const whiteRgb: [number, number, number] = [255, 255, 255]
+  const tintedRgb = mixRgb(whiteRgb, primaryRgb, 0.14)
+  const tintedHex = rgbToHex(tintedRgb[0], tintedRgb[1], tintedRgb[2])
+
+  return findNearestCompliantBackgroundColor(
+    tintedHex,
+    [textPrimaryHex, textMutedHex],
+    WCAG_AA_TEXT_CONTRAST,
+  ) ?? tintedHex
+}
+
 const ensureGoogleFontStylesheet = (fontId: string, googleFamily: string) => {
   const stylesheetId = `widget-google-font-${fontId}`
   if (document.getElementById(stylesheetId)) {
@@ -348,6 +501,9 @@ interface WidgetDesignPageProps {
 interface PaymentOptionRowProps {
   children: React.ReactNode
   isCompact: boolean
+  buttonType?: WidgetButtonType
+  buttonRadius?: number
+  useFilledTextColors?: boolean
   className?: string
   style?: React.CSSProperties
   active?: boolean
@@ -361,6 +517,9 @@ interface PaymentOptionRowProps {
 function PaymentOptionRow({
   children,
   isCompact,
+  buttonType = 'outline',
+  buttonRadius = defaultWidgetButtonStyle.radius,
+  useFilledTextColors = buttonType === 'filled',
   className,
   style,
   active = false,
@@ -370,14 +529,26 @@ function PaymentOptionRow({
   ariaExpanded,
   ariaControls,
 }: PaymentOptionRowProps) {
+  const isFilledButton = buttonType === 'filled'
+  const isTonalButton = buttonType === 'tonal'
   const baseClassName = [
-    'w-full text-[var(--widget-text-primary)] transition-colors',
+    `w-full ${useFilledTextColors ? 'text-[var(--widget-option-filled-text)] [&_.widget-option-muted]:text-[var(--widget-option-filled-muted-text)]' : 'text-[var(--widget-text-primary)]'} transition-colors`,
     withBorder
       ? active
-        ? 'border border-[var(--widget-color-primary)]'
-        : `border border-[var(--widget-color-border)] ${hoverable ? 'hover:border-[var(--widget-color-primary)] hover:bg-[var(--widget-option-hover-bg)]' : ''}`
+        ? `border border-[var(--widget-color-primary)] ${isFilledButton ? 'bg-[var(--widget-option-button-bg)]' : isTonalButton ? 'bg-[var(--widget-option-button-tonal-bg)]' : 'bg-[var(--widget-color-surface)]'}`
+        : isFilledButton
+          ? `border border-transparent bg-[var(--widget-option-button-bg)] ${hoverable ? 'hover:bg-[var(--widget-option-button-bg-hover)]' : ''}`
+          : isTonalButton
+            ? `border border-transparent bg-[var(--widget-option-button-tonal-bg)] ${hoverable ? 'hover:bg-[var(--widget-option-button-tonal-bg-hover)]' : ''}`
+          : `border border-[var(--widget-color-border)] bg-[var(--widget-color-surface)] ${hoverable ? 'hover:border-[var(--widget-color-primary)] hover:bg-[var(--widget-option-hover-bg)]' : ''}`
       : '',
-    !withBorder && onClick && hoverable ? 'hover:bg-[var(--widget-option-hover-bg)]' : '',
+    !withBorder && onClick && hoverable
+      ? isFilledButton
+        ? 'hover:bg-[var(--widget-option-button-bg-hover)]'
+        : isTonalButton
+          ? 'hover:bg-[var(--widget-option-button-tonal-bg-hover)]'
+        : 'hover:bg-[var(--widget-option-hover-bg)]'
+      : '',
     onClick ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--widget-color-primary)]' : '',
     className ?? '',
   ]
@@ -389,7 +560,7 @@ function PaymentOptionRow({
       type="button"
       className={baseClassName}
       style={{
-        borderRadius: 'var(--widget-radius-pill)',
+        borderRadius: `${buttonRadius}px`,
         height: isCompact ? undefined : `${paymentOptionRowHeight}px`,
         paddingInline: isCompact ? 'var(--widget-option-padding-x-compact)' : 'var(--widget-option-padding-x)',
         paddingBlock: isCompact ? 'var(--widget-option-padding-y-compact)' : 'var(--widget-option-padding-y)',
@@ -408,6 +579,14 @@ function PaymentOptionRow({
 export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProps) {
   const { graphics } = useAppGraphics()
   const { userRole } = useAppUserRole()
+  const initialWidgetTheme = {
+    ...defaultWidgetTheme,
+    inputFilledSurface: deriveInputFilledSurfaceFromPrimary(
+      defaultWidgetTheme.primary,
+      defaultWidgetTheme.textPrimary,
+      defaultWidgetTheme.textMuted,
+    ),
+  }
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [activeWidgetSectionId, setActiveWidgetSectionId] = useState(() => {
     if (typeof window === 'undefined') {
@@ -419,13 +598,19 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
   })
   const [widgetWidth, setWidgetWidth] = useState(360)
   const [widgetSurfaceMode, setWidgetSurfaceMode] = useState<'filled' | 'border-only'>('filled')
-  const [widgetTheme, setWidgetTheme] = useState(defaultWidgetTheme)
-  const [widgetThemeDraft, setWidgetThemeDraft] = useState(defaultWidgetTheme)
+  const [widgetTheme, setWidgetTheme] = useState(initialWidgetTheme)
+  const [widgetThemeDraft, setWidgetThemeDraft] = useState(initialWidgetTheme)
+  const [isInputFilledSurfaceLinkedToPrimary, setIsInputFilledSurfaceLinkedToPrimary] = useState(true)
   const [widgetTypography, setWidgetTypography] = useState<(typeof widgetTypographyOptions)[number]['id']>(defaultWidgetTypographyId)
+  const [widgetButtonStyle, setWidgetButtonStyle] = useState(defaultWidgetButtonStyle)
+  const [widgetInputStyle, setWidgetInputStyle] = useState(defaultWidgetInputStyle)
+  const [widgetSurfaceStyle, setWidgetSurfaceStyle] = useState(defaultWidgetSurfaceStyle)
+  const [widgetDensityPreset, setWidgetDensityPreset] = useState<WidgetDensityPreset>(defaultWidgetDensityPreset)
   const [isTypographyDropdownOpen, setIsTypographyDropdownOpen] = useState(false)
   const [typographySearchQuery, setTypographySearchQuery] = useState('')
   const [typographyCategoryFilter, setTypographyCategoryFilter] = useState<'all' | WidgetTypographyCategory>('all')
   const [isPayByNewCardOpen, setIsPayByNewCardOpen] = useState(false)
+  const [isSaveCardEnabled, setIsSaveCardEnabled] = useState(false)
   const [elementVisibility, setElementVisibility] = useState(defaultElementVisibility)
   const widgetSectionRefs = useRef<Record<string, HTMLElement | null>>({})
   const typographyDropdownRef = useRef<HTMLDivElement | null>(null)
@@ -448,8 +633,11 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
   const isWidgetCompact = widgetWidth < 360
   const isCardInformationSingleRow = widgetWidth >= 420
   const isConfigurationCompact = widgetWidth >= 520
+  const payByNewCardOpenRadius = Math.min(widgetButtonStyle.radius, 24)
   const activeCardBrand = defaultCardBrand
   const isPreviewStickyEnabled = true
+  const activeWidgetDensityPreset = widgetDensityPresetOptions.find((option) => option.id === widgetDensityPreset) ?? widgetDensityPresetOptions[1]
+  const widgetPreviewVerticalGap = activeWidgetDensityPreset.verticalSpacing
 
   const clampWidgetWidth = (width: number) => {
     return Math.max(widgetMinWidth, Math.min(widgetMaxWidth, width))
@@ -517,7 +705,30 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
   }
 
   const handleWidgetThemeChange = (token: keyof typeof widgetTheme, value: string) => {
-    setWidgetTheme((prev) => ({ ...prev, [token]: value }))
+    const normalizedValue = normalizeColorToHex(value) ?? value
+
+    if (token === 'inputFilledSurface') {
+      setIsInputFilledSurfaceLinkedToPrimary(false)
+      setWidgetTheme((prev) => ({ ...prev, inputFilledSurface: normalizedValue }))
+      return
+    }
+
+    setWidgetTheme((prev) => {
+      const nextTheme = { ...prev, [token]: normalizedValue }
+
+      if (
+        isInputFilledSurfaceLinkedToPrimary
+        && (token === 'primary' || token === 'textPrimary' || token === 'textMuted')
+      ) {
+        nextTheme.inputFilledSurface = deriveInputFilledSurfaceFromPrimary(
+          nextTheme.primary,
+          nextTheme.textPrimary,
+          nextTheme.textMuted,
+        )
+      }
+
+      return nextTheme
+    })
   }
 
   const handleWidgetThemeHexInputChange = (token: keyof typeof widgetTheme, value: string) => {
@@ -533,13 +744,38 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
   }
 
   const resetWidgetThemeToken = (token: keyof typeof widgetTheme) => {
+    if (token === 'inputFilledSurface') {
+      setIsInputFilledSurfaceLinkedToPrimary(true)
+      setWidgetTheme((prev) => ({
+        ...prev,
+        inputFilledSurface: deriveInputFilledSurfaceFromPrimary(prev.primary, prev.textPrimary, prev.textMuted),
+      }))
+      return
+    }
+
     setWidgetTheme((prev) => ({ ...prev, [token]: defaultWidgetTheme[token] }))
   }
 
   const resetWidgetTheme = () => {
+    const resetTheme = {
+      ...defaultWidgetTheme,
+      inputFilledSurface: deriveInputFilledSurfaceFromPrimary(
+        defaultWidgetTheme.primary,
+        defaultWidgetTheme.textPrimary,
+        defaultWidgetTheme.textMuted,
+      ),
+    }
+
     setWidgetSurfaceMode('filled')
-    setWidgetTheme(defaultWidgetTheme)
-    setWidgetThemeDraft(defaultWidgetTheme)
+    setWidgetSurfaceStyle(defaultWidgetSurfaceStyle)
+    setIsInputFilledSurfaceLinkedToPrimary(true)
+    setWidgetTheme(resetTheme)
+    setWidgetThemeDraft(resetTheme)
+  }
+
+  const handleWidgetSurfaceRadiusChange = (value: number) => {
+    const normalizedValue = Number.isFinite(value) ? Math.max(0, Math.min(32, Math.round(value))) : defaultWidgetSurfaceStyle.radius
+    setWidgetSurfaceStyle({ radius: normalizedValue })
   }
 
   const resetWidgetTypographySection = () => {
@@ -547,6 +783,40 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
     setTypographySearchQuery('')
     setTypographyCategoryFilter('all')
     setIsTypographyDropdownOpen(false)
+  }
+
+  const handleWidgetButtonTypeChange = (value: string) => {
+    if (value !== 'outline' && value !== 'filled' && value !== 'tonal') {
+      return
+    }
+
+    setWidgetButtonStyle((prev) => ({ ...prev, type: value }))
+  }
+
+  const handleWidgetButtonRadiusChange = (value: number) => {
+    const normalizedValue = Number.isFinite(value) ? Math.max(0, Math.min(64, Math.round(value))) : defaultWidgetButtonStyle.radius
+    setWidgetButtonStyle((prev) => ({ ...prev, radius: normalizedValue }))
+  }
+
+  const resetWidgetButtonStyleSection = () => {
+    setWidgetButtonStyle(defaultWidgetButtonStyle)
+  }
+
+  const handleWidgetInputTypeChange = (value: string) => {
+    if (value !== 'outline' && value !== 'filled') {
+      return
+    }
+
+    setWidgetInputStyle((prev) => ({ ...prev, type: value }))
+  }
+
+  const handleWidgetInputRadiusChange = (value: number) => {
+    const normalizedValue = Number.isFinite(value) ? Math.max(0, Math.min(16, Math.round(value))) : defaultWidgetInputStyle.radius
+    setWidgetInputStyle((prev) => ({ ...prev, radius: normalizedValue }))
+  }
+
+  const resetWidgetInputStyleSection = () => {
+    setWidgetInputStyle(defaultWidgetInputStyle)
   }
 
   useEffect(() => {
@@ -692,6 +962,38 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
         return `rgb(${red} ${green} ${blue} / 0.10)`
       })()
     : 'rgb(52 101 235 / 0.10)'
+  const widgetOptionButtonBg = normalizedPrimaryColor
+    ? normalizedPrimaryColor
+    : '#3465eb'
+  const widgetOptionButtonBgHover = normalizedPrimaryColor
+    ? (() => {
+        const [red, green, blue] = hexToRgb(normalizedPrimaryColor)
+        return `rgb(${Math.round(red * 0.88)} ${Math.round(green * 0.88)} ${Math.round(blue * 0.88)})`
+      })()
+    : '#2d57cb'
+  const widgetOptionButtonTonalBg = normalizedPrimaryColor
+    ? (() => {
+        const [red, green, blue] = hexToRgb(normalizedPrimaryColor)
+        return `rgb(${red} ${green} ${blue} / 0.12)`
+      })()
+    : 'rgb(52 101 235 / 0.12)'
+  const widgetOptionButtonTonalBgHover = normalizedPrimaryColor
+    ? (() => {
+        const [red, green, blue] = hexToRgb(normalizedPrimaryColor)
+        return `rgb(${red} ${green} ${blue} / 0.18)`
+      })()
+    : 'rgb(52 101 235 / 0.18)'
+  const derivedInputFilledSurfaceDefault = deriveInputFilledSurfaceFromPrimary(
+    widgetTheme.primary,
+    widgetTheme.textPrimary,
+    widgetTheme.textMuted,
+  )
+  const widgetInputFilledBg = normalizeHexColor(widgetTheme.inputFilledSurface) ?? derivedInputFilledSurfaceDefault
+  const widgetOptionButtonTonalBgSolid = compositeHexOverHex(
+    normalizedPrimaryColor ?? widgetTheme.primary,
+    effectiveWidgetSurfaceColor,
+    0.12,
+  ) ?? '#e8effd'
 
   const widgetThemeStyles = {
     '--widget-color-primary': widgetTheme.primary,
@@ -700,9 +1002,29 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
     '--widget-text-primary': widgetTheme.textPrimary,
     '--widget-text-muted': widgetTheme.textMuted,
     '--widget-text-on-primary': widgetTheme.textOnPrimary,
+    '--widget-text-on-primary-muted': widgetTheme.textOnPrimaryMuted,
     '--widget-option-hover-bg': widgetOptionHoverBg,
+    '--widget-option-button-bg': widgetOptionButtonBg,
+    '--widget-option-button-bg-hover': widgetOptionButtonBgHover,
+    '--widget-option-button-tonal-bg': widgetOptionButtonTonalBg,
+    '--widget-option-button-tonal-bg-hover': widgetOptionButtonTonalBgHover,
+    '--widget-option-filled-text': widgetTheme.textOnPrimary,
+    '--widget-option-filled-muted-text': widgetTheme.textOnPrimaryMuted,
+    '--widget-input-bg': widgetInputStyle.type === 'filled' ? widgetInputFilledBg : effectiveWidgetSurfaceColor,
+    '--widget-input-border': widgetInputStyle.type === 'filled' ? 'transparent' : widgetTheme.border,
+    '--widget-input-text': widgetTheme.textPrimary,
+    '--widget-input-placeholder': widgetTheme.textMuted,
+    '--widget-input-ring': widgetTheme.primary,
+    '--widget-input-radius': `${widgetInputStyle.radius}px`,
+    '--widget-radius-card': `${widgetSurfaceStyle.radius}px`,
+    '--widget-switch-checked-bg': widgetTheme.primary,
+    '--widget-switch-unchecked-bg': widgetTheme.border,
+    '--widget-switch-thumb-bg': effectiveWidgetSurfaceColor,
+    '--widget-switch-ring': widgetTheme.primary,
     '--widget-font-family': widgetTypographyOptions.find((option) => option.id === widgetTypography)?.fontFamily ?? "'DM Sans', sans-serif",
     '--widget-heading-font-family': widgetTypographyOptions.find((option) => option.id === widgetTypography)?.fontFamily ?? "'DM Sans', sans-serif",
+    '--widget-density-padding-inline': `${activeWidgetDensityPreset.horizontalPadding}px`,
+    '--widget-density-gap': `${widgetPreviewVerticalGap}px`,
   } as React.CSSProperties
 
   const widgetPreviewPanelStyles = {
@@ -711,19 +1033,72 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
     '--widget-text-on-primary': widgetTheme.textOnPrimary,
   } as React.CSSProperties
 
+  const buttonStyleSectionOptions = [
+    {
+      type: 'outline' as const,
+      label: 'Outline',
+      description: 'Border + Text primary. Hover uses Primary.',
+      sampleStyle: {
+        borderColor: widgetTheme.border,
+        color: widgetTheme.textPrimary,
+        backgroundColor: effectiveWidgetSurfaceColor,
+        borderRadius: `${widgetButtonStyle.radius}px`,
+      } as React.CSSProperties,
+    },
+    {
+      type: 'filled' as const,
+      label: 'Filled',
+      description: 'Primary fill with On-primary text colors.',
+      sampleStyle: {
+        borderColor: 'transparent',
+        color: widgetTheme.textOnPrimary,
+        backgroundColor: widgetTheme.primary,
+        borderRadius: `${widgetButtonStyle.radius}px`,
+      } as React.CSSProperties,
+    },
+  ]
+
   const textOnPrimaryContrastRatio = getContrastRatio(widgetTheme.primary, widgetTheme.textOnPrimary)
   const normalizedTextOnPrimary = normalizeHexColor(widgetTheme.textOnPrimary)
   const suggestedTextOnPrimary = findNearestCompliantTextColor(widgetTheme.primary, widgetTheme.textOnPrimary, WCAG_AA_TEXT_CONTRAST)
   const isTextOnPrimaryContrastPassing = textOnPrimaryContrastRatio !== null && textOnPrimaryContrastRatio >= WCAG_AA_TEXT_CONTRAST
+  const textOnPrimaryMutedContrastRatio = getContrastRatio(widgetTheme.primary, widgetTheme.textOnPrimaryMuted)
+  const normalizedTextOnPrimaryMuted = normalizeHexColor(widgetTheme.textOnPrimaryMuted)
+  const suggestedTextOnPrimaryMuted = findNearestCompliantTextColor(widgetTheme.primary, widgetTheme.textOnPrimaryMuted, WCAG_AA_TEXT_CONTRAST)
+  const isTextOnPrimaryMutedContrastPassing = textOnPrimaryMutedContrastRatio !== null && textOnPrimaryMutedContrastRatio >= WCAG_AA_TEXT_CONTRAST
   const textPrimaryOnSurfaceContrastRatio = getContrastRatio(effectiveWidgetSurfaceColor, widgetTheme.textPrimary)
   const textMutedOnSurfaceContrastRatio = getContrastRatio(effectiveWidgetSurfaceColor, widgetTheme.textMuted)
+  const textPrimaryOnTonalContrastRatio = getContrastRatio(widgetOptionButtonTonalBgSolid, widgetTheme.textPrimary)
+  const textMutedOnTonalContrastRatio = getContrastRatio(widgetOptionButtonTonalBgSolid, widgetTheme.textMuted)
+  const textPrimaryOnInputFilledSurfaceContrastRatio = getContrastRatio(widgetInputFilledBg, widgetTheme.textPrimary)
+  const textMutedOnInputFilledSurfaceContrastRatio = getContrastRatio(widgetInputFilledBg, widgetTheme.textMuted)
   const normalizedTextPrimary = normalizeHexColor(widgetTheme.textPrimary)
   const normalizedTextMuted = normalizeHexColor(widgetTheme.textMuted)
   const suggestedTextPrimaryOnSurface = findNearestCompliantTextColor(effectiveWidgetSurfaceColor, widgetTheme.textPrimary, WCAG_AA_TEXT_CONTRAST)
   const suggestedTextMutedOnSurface = findNearestCompliantTextColor(effectiveWidgetSurfaceColor, widgetTheme.textMuted, WCAG_AA_TEXT_CONTRAST)
+  const suggestedTextPrimaryOnTonal = findNearestCompliantTextColor(widgetOptionButtonTonalBgSolid, widgetTheme.textPrimary, WCAG_AA_TEXT_CONTRAST)
+  const suggestedTextMutedOnTonal = findNearestCompliantTextColor(widgetOptionButtonTonalBgSolid, widgetTheme.textMuted, WCAG_AA_TEXT_CONTRAST)
+  const suggestedTextPrimaryOnInputFilledSurface = findNearestCompliantTextColor(widgetInputFilledBg, widgetTheme.textPrimary, WCAG_AA_TEXT_CONTRAST)
+  const suggestedTextMutedOnInputFilledSurface = findNearestCompliantTextColor(widgetInputFilledBg, widgetTheme.textMuted, WCAG_AA_TEXT_CONTRAST)
+  const normalizedInputFilledSurface = normalizeHexColor(widgetTheme.inputFilledSurface)
+  const normalizedDefaultInputFilledSurface = normalizeHexColor(derivedInputFilledSurfaceDefault)
+  const isInputFilledSurfaceDefault = normalizedInputFilledSurface !== null && normalizedDefaultInputFilledSurface !== null
+    ? normalizedInputFilledSurface === normalizedDefaultInputFilledSurface
+    : widgetTheme.inputFilledSurface.trim().toLowerCase() === derivedInputFilledSurfaceDefault.trim().toLowerCase()
   const isTextPrimaryOnSurfacePassing = textPrimaryOnSurfaceContrastRatio !== null && textPrimaryOnSurfaceContrastRatio >= WCAG_AA_TEXT_CONTRAST
   const isTextMutedOnSurfacePassing = textMutedOnSurfaceContrastRatio !== null && textMutedOnSurfaceContrastRatio >= WCAG_AA_TEXT_CONTRAST
+  const isTextPrimaryOnTonalPassing = textPrimaryOnTonalContrastRatio !== null
+    && textPrimaryOnTonalContrastRatio >= WCAG_AA_TEXT_CONTRAST
+  const isTextMutedOnTonalPassing = textMutedOnTonalContrastRatio !== null
+    && textMutedOnTonalContrastRatio >= WCAG_AA_TEXT_CONTRAST
+  const isTextPrimaryOnInputFilledSurfacePassing = textPrimaryOnInputFilledSurfaceContrastRatio !== null
+    && textPrimaryOnInputFilledSurfaceContrastRatio >= WCAG_AA_TEXT_CONTRAST
+  const isTextMutedOnInputFilledSurfacePassing = textMutedOnInputFilledSurfaceContrastRatio !== null
+    && textMutedOnInputFilledSurfaceContrastRatio >= WCAG_AA_TEXT_CONTRAST
   const areSurfaceTextColorsPassing = isTextPrimaryOnSurfacePassing && isTextMutedOnSurfacePassing
+  const areTonalTextColorsPassing = isTextPrimaryOnTonalPassing && isTextMutedOnTonalPassing
+  const areInputFilledSurfaceTextColorsPassing = isTextPrimaryOnInputFilledSurfacePassing && isTextMutedOnInputFilledSurfacePassing
+  const shouldCheckTonalTextColors = widgetButtonStyle.type === 'tonal'
 
   const themeControls = [
     {
@@ -756,6 +1131,11 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
       token: 'textOnPrimary' as const,
       description: 'Text color shown on top of primary elements.',
     },
+    {
+      label: 'On primary text muted',
+      token: 'textOnPrimaryMuted' as const,
+      description: 'Secondary text color shown on top of primary elements.',
+    },
   ]
 
   const colorManagementGroups: Array<{
@@ -767,17 +1147,17 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
   }> = [
     {
       id: 'primary-action',
-      title: 'Buttons and Highlights',
+      title: 'Primary color',
       description: 'Control how your key actions and highlight labels look.',
-      tokens: ['primary', 'textOnPrimary'],
-      hasWarning: !isTextOnPrimaryContrastPassing,
+      tokens: ['primary', 'textOnPrimary', 'textOnPrimaryMuted'],
+      hasWarning: !isTextOnPrimaryContrastPassing || !isTextOnPrimaryMutedContrastPassing,
     },
     {
       id: 'surface-readability',
       title: 'Surface and Text Readability',
       description: 'Set your card background and make sure text stays easy to read.',
       tokens: ['surface', 'textPrimary', 'textMuted'],
-      hasWarning: !areSurfaceTextColorsPassing,
+      hasWarning: !areSurfaceTextColorsPassing || (shouldCheckTonalTextColors && !areTonalTextColorsPassing),
     },
     {
       id: 'structural',
@@ -787,6 +1167,7 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
       hasWarning: false,
     },
   ]
+  const hasAppearanceAccessibilityWarning = colorManagementGroups.some((group) => group.id !== 'structural' && group.hasWarning)
 
   const selectedWidgetTypographyOption = widgetTypographyOptions.find((option) => option.id === widgetTypography) ?? widgetTypographyOptions[0]
   const filteredWidgetTypographyOptions = widgetTypographyOptions.filter((option) => {
@@ -801,7 +1182,6 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
 
     return option.label.toLowerCase().includes(query)
   })
-
   return (
     <div className="min-h-screen bg-white text-[#1f2430]">
       {isMerchantUser ? <MerchantTopHeader /> : null}
@@ -960,10 +1340,136 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                   ) : null}
                 </section>
 
+                <section id="widget-button-style" ref={registerWidgetSectionRef('widget-button-style')} className="space-y-4 border-t-2 border-[var(--sidebar-border-color-strong)] pt-8 pb-8">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-lg font-semibold text-[var(--sidebar-text-primary)]">Button style</p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-8 px-3 text-sm"
+                        onClick={resetWidgetButtonStyleSection}
+                        disabled={widgetButtonStyle.type === defaultWidgetButtonStyle.type && widgetButtonStyle.radius === defaultWidgetButtonStyle.radius}
+                      >
+                        Reset section
+                      </Button>
+                    </div>
+                  </div>
+
+                  <p className="text-sm text-[var(--sidebar-text-secondary)]">
+                    Manage button structure for the whole widget. Action buttons keep their current visual hierarchy.
+                  </p>
+
+                  <div className="divide-y divide-[var(--sidebar-border-color)]">
+                    <div className="grid gap-3 py-3 grid-cols-1">
+                      <fieldset className="grid gap-3 min-w-0 w-full">
+                        <legend className="sr-only">Button type</legend>
+                        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                          {buttonStyleSectionOptions.map((option) => {
+                            const isSelected = widgetButtonStyle.type === option.type
+
+                            return (
+                              <label key={option.type} className="block cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="widget-button-type"
+                                  value={option.type}
+                                  checked={isSelected}
+                                  onChange={(event) => handleWidgetButtonTypeChange(event.target.value)}
+                                  className="peer sr-only"
+                                />
+                                <span className={`flex min-w-[220px] flex-col gap-3 rounded-xl border p-3 transition-colors hover:border-[var(--sidebar-border-color-strong)] ${
+                                  isSelected
+                                    ? 'border-[var(--sidebar-border-color-strong)] bg-[var(--sidebar-bg)]'
+                                    : 'border-[var(--sidebar-border-color)] bg-[var(--sidebar-menu-bg)]'
+                                }`}>
+                                  <span className="space-y-1">
+                                    <span className="flex items-center gap-2 text-sm font-semibold text-[var(--sidebar-text-primary)]">
+                                      <span className={`flex h-4 w-4 items-center justify-center rounded-full border bg-white ${
+                                        isSelected
+                                          ? 'border-[var(--sidebar-text-primary)]'
+                                          : 'border-[var(--sidebar-border-color-strong)]'
+                                      }`}>
+                                        <span className={`h-2 w-2 rounded-full bg-[var(--sidebar-text-primary)] transition-opacity ${
+                                          isSelected ? 'opacity-100' : 'opacity-0'
+                                        }`} />
+                                      </span>
+                                      <span>{option.label}</span>
+                                    </span>
+                                    <span className="block min-h-10 text-sm leading-5 text-[var(--sidebar-text-secondary)]">
+                                      {option.description}
+                                    </span>
+                                  </span>
+                                  <span
+                                    className="inline-flex h-10 items-center justify-center rounded-full border px-4 text-sm font-semibold"
+                                    style={option.sampleStyle}
+                                  >
+                                    Sample text
+                                  </span>
+                                </span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </fieldset>
+                    </div>
+
+                    <div className={`grid gap-3 py-3 ${isConfigurationCompact ? 'grid-cols-1' : 'md:grid-cols-[minmax(0,1fr)_220px] md:items-start'}`}>
+                      <div className="min-w-0 space-y-1">
+                        <p className="font-medium text-[var(--sidebar-text-primary)]">Border radius</p>
+                        <p className="text-sm text-[var(--sidebar-text-secondary)]">Set corner roundness for widget buttons (0 to 64px).</p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={64}
+                          step={1}
+                          value={widgetButtonStyle.radius}
+                          onChange={(event) => handleWidgetButtonRadiusChange(Number(event.target.value))}
+                          aria-label="Widget button radius in pixels"
+                          className="h-9"
+                        />
+                        <input
+                          type="range"
+                          min={0}
+                          max={64}
+                          step={1}
+                          value={widgetButtonStyle.radius}
+                          onChange={(event) => handleWidgetButtonRadiusChange(Number(event.target.value))}
+                          aria-label="Widget button radius slider"
+                          className="h-2 w-full cursor-pointer accent-[var(--widget-color-primary)]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
                 <section id="widget-theme" ref={registerWidgetSectionRef('widget-theme')} className="space-y-6 scroll-mt-6 border-t-2 border-[var(--sidebar-border-color-strong)] pt-8 pb-8">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-lg font-semibold text-[var(--sidebar-text-primary)]">Appearance</p>
+                      <div className="flex items-center gap-3">
+                        <p className="text-lg font-semibold text-[var(--sidebar-text-primary)]">Appearance</p>
+                        <span
+                          className="inline-flex items-center rounded-full border px-2 py-0.5 text-sm font-semibold"
+                          style={
+                            hasAppearanceAccessibilityWarning
+                              ? {
+                                  borderColor: 'var(--widget-status-warning-border)',
+                                  backgroundColor: 'var(--widget-status-warning-bg)',
+                                  color: 'var(--widget-status-warning-text)',
+                                }
+                              : {
+                                  borderColor: 'var(--widget-color-border)',
+                                  backgroundColor: 'var(--sidebar-menu-bg)',
+                                  color: 'var(--sidebar-text-secondary)',
+                                }
+                          }
+                        >
+                          {hasAppearanceAccessibilityWarning ? 'Needs attention' : 'No Accessibility issues'}
+                        </span>
+                      </div>
                       <Button type="button" variant="outline" className="h-8 px-3 text-sm" onClick={resetWidgetTheme}>
                         Reset section
                       </Button>
@@ -976,45 +1482,45 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                   <div className="space-y-6">
                     {colorManagementGroups.map((group, index) => (
                           <section key={group.id} className={`${index === 0 ? '' : 'border-t border-[var(--sidebar-border-color)] pt-6'} space-y-2`}>
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="font-semibold text-[var(--sidebar-text-primary)]">{group.title}</p>
-                            {group.id !== 'structural' ? (
-                              <span
-                                className="inline-flex items-center rounded-full border px-2 py-0.5 text-sm font-semibold"
-                                style={
-                                  group.hasWarning
-                                    ? {
-                                        borderColor: 'var(--widget-status-warning-border)',
-                                        backgroundColor: 'var(--widget-status-warning-bg)',
-                                        color: 'var(--widget-status-warning-text)',
-                                      }
-                                    : {
-                                        borderColor: 'var(--widget-color-border)',
-                                        backgroundColor: 'var(--sidebar-menu-bg)',
-                                        color: 'var(--sidebar-text-secondary)',
-                                      }
-                                }
-                              >
-                                {group.hasWarning ? 'Needs attention' : 'No issues'}
-                              </span>
-                            ) : null}
-                          </div>
-                          <p className="text-sm text-[var(--sidebar-text-secondary)]">{group.description}</p>
+                          {group.id !== 'primary-action' ? (
+                            <>
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="font-semibold text-[var(--sidebar-text-primary)]">{group.title}</p>
+                              </div>
+                              <p className="text-sm text-[var(--sidebar-text-secondary)]">{group.description}</p>
+                            </>
+                          ) : null}
 
                           <div className="divide-y divide-[var(--sidebar-border-color)]">
                             {group.id === 'surface-readability' ? (
-                              <div className={`grid gap-3 py-3 ${isConfigurationCompact ? 'grid-cols-1' : 'md:grid-cols-[minmax(0,1fr)_auto] md:items-start'}`}>
-                                <div className="space-y-1">
-                                  <p className="font-medium text-[var(--sidebar-text-primary)]">Surface mode</p>
-                                  <p className="text-sm text-[var(--sidebar-text-secondary)]">Choose a themed background or keep a white card with accent borders.</p>
+                              <div className={`grid gap-3 py-3 ${isConfigurationCompact ? 'grid-cols-1' : 'md:grid-cols-[minmax(0,1fr)_220px] md:items-start'}`}>
+                                <div className="min-w-0 space-y-1">
+                                  <p className="font-medium text-[var(--sidebar-text-primary)]">Surface border radius</p>
+                                  <p className="text-sm text-[var(--sidebar-text-secondary)]">Set corner roundness for the whole widget surface (0 to 32px).</p>
                                 </div>
 
-                                <Tabs value={widgetSurfaceMode} onValueChange={(value) => setWidgetSurfaceMode(value as 'filled' | 'border-only')} className="w-fit justify-self-start">
-                                  <TabsList>
-                                    <TabsTrigger value="filled">Filled</TabsTrigger>
-                                    <TabsTrigger value="border-only">White</TabsTrigger>
-                                  </TabsList>
-                                </Tabs>
+                                <div className="space-y-3">
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={32}
+                                    step={1}
+                                    value={widgetSurfaceStyle.radius}
+                                    onChange={(event) => handleWidgetSurfaceRadiusChange(Number(event.target.value))}
+                                    aria-label="Widget surface radius in pixels"
+                                    className="h-9"
+                                  />
+                                  <input
+                                    type="range"
+                                    min={0}
+                                    max={32}
+                                    step={1}
+                                    value={widgetSurfaceStyle.radius}
+                                    onChange={(event) => handleWidgetSurfaceRadiusChange(Number(event.target.value))}
+                                    aria-label="Widget surface radius slider"
+                                    className="h-2 w-full cursor-pointer accent-[var(--widget-color-primary)]"
+                                  />
+                                </div>
                               </div>
                             ) : null}
 
@@ -1061,13 +1567,18 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                                 )
                               }
 
-                              if (control.token === 'textPrimary' && !isTextPrimaryOnSurfacePassing) {
+                              if (control.token === 'textPrimary' && (!isTextPrimaryOnSurfacePassing || (shouldCheckTonalTextColors && !isTextPrimaryOnTonalPassing))) {
                                 warningContent = (
                                   <>
                                     <p>
-                                      Contrast ratio: {textPrimaryOnSurfaceContrastRatio !== null ? `${textPrimaryOnSurfaceContrastRatio.toFixed(2)}:1` : 'n/a'} (required {WCAG_AA_TEXT_CONTRAST}:1)
+                                      Surface ratio: {textPrimaryOnSurfaceContrastRatio !== null ? `${textPrimaryOnSurfaceContrastRatio.toFixed(2)}:1` : 'n/a'} (required {WCAG_AA_TEXT_CONTRAST}:1)
                                     </p>
-                                    <p className="mt-1 font-semibold">This color does not meet WCAG AA on the current surface.</p>
+                                    {shouldCheckTonalTextColors ? (
+                                      <p className="mt-1">
+                                        Tonal button ratio: {textPrimaryOnTonalContrastRatio !== null ? `${textPrimaryOnTonalContrastRatio.toFixed(2)}:1` : 'n/a'} (required {WCAG_AA_TEXT_CONTRAST}:1)
+                                      </p>
+                                    ) : null}
+                                    <p className="mt-1 font-semibold">This color does not meet WCAG AA in one or more UI contexts.</p>
                                     {!isTextPrimaryOnSurfacePassing && suggestedTextPrimaryOnSurface && suggestedTextPrimaryOnSurface !== normalizedTextPrimary ? (
                                       <div className="mt-2 flex flex-wrap items-center gap-2">
                                         <span>Try this accessible value: {suggestedTextPrimaryOnSurface}</span>
@@ -1081,17 +1592,37 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                                         </Button>
                                       </div>
                                     ) : null}
+                                    {shouldCheckTonalTextColors && !isTextPrimaryOnTonalPassing && suggestedTextPrimaryOnTonal ? (
+                                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                                        <span>Suggested Text Primary for Tonal buttons: {suggestedTextPrimaryOnTonal}</span>
+                                        {suggestedTextPrimaryOnTonal !== normalizedTextPrimary ? (
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="h-8 px-3 text-sm"
+                                            onClick={() => handleWidgetThemeChange('textPrimary', suggestedTextPrimaryOnTonal)}
+                                          >
+                                            Apply
+                                          </Button>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
                                   </>
                                 )
                               }
 
-                              if (control.token === 'textMuted' && !isTextMutedOnSurfacePassing) {
+                              if (control.token === 'textMuted' && (!isTextMutedOnSurfacePassing || (shouldCheckTonalTextColors && !isTextMutedOnTonalPassing))) {
                                 warningContent = (
                                   <>
                                     <p>
-                                      Contrast ratio: {textMutedOnSurfaceContrastRatio !== null ? `${textMutedOnSurfaceContrastRatio.toFixed(2)}:1` : 'n/a'} (required {WCAG_AA_TEXT_CONTRAST}:1)
+                                      Surface ratio: {textMutedOnSurfaceContrastRatio !== null ? `${textMutedOnSurfaceContrastRatio.toFixed(2)}:1` : 'n/a'} (required {WCAG_AA_TEXT_CONTRAST}:1)
                                     </p>
-                                    <p className="mt-1 font-semibold">This color does not meet WCAG AA on the current surface.</p>
+                                    {shouldCheckTonalTextColors ? (
+                                      <p className="mt-1">
+                                        Tonal button ratio: {textMutedOnTonalContrastRatio !== null ? `${textMutedOnTonalContrastRatio.toFixed(2)}:1` : 'n/a'} (required {WCAG_AA_TEXT_CONTRAST}:1)
+                                      </p>
+                                    ) : null}
+                                    <p className="mt-1 font-semibold">This color does not meet WCAG AA in one or more UI contexts.</p>
                                     {!isTextMutedOnSurfacePassing && suggestedTextMutedOnSurface && suggestedTextMutedOnSurface !== normalizedTextMuted ? (
                                       <div className="mt-2 flex flex-wrap items-center gap-2">
                                         <span>Try this accessible value: {suggestedTextMutedOnSurface}</span>
@@ -1103,6 +1634,21 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                                         >
                                           Apply
                                         </Button>
+                                      </div>
+                                    ) : null}
+                                    {shouldCheckTonalTextColors && !isTextMutedOnTonalPassing && suggestedTextMutedOnTonal ? (
+                                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                                        <span>Suggested Text Muted for Tonal buttons: {suggestedTextMutedOnTonal}</span>
+                                        {suggestedTextMutedOnTonal !== normalizedTextMuted ? (
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="h-8 px-3 text-sm"
+                                            onClick={() => handleWidgetThemeChange('textMuted', suggestedTextMutedOnTonal)}
+                                          >
+                                            Apply
+                                          </Button>
+                                        ) : null}
                                       </div>
                                     ) : null}
                                   </>
@@ -1130,6 +1676,33 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                                       </div>
                                     ) : null}
                                     {!isTextOnPrimaryContrastPassing && textOnPrimaryContrastRatio === null ? (
+                                      <p className="mt-1 font-semibold">Enter a valid hex value to run the contrast check.</p>
+                                    ) : null}
+                                  </>
+                                )
+                              }
+
+                              if (control.token === 'textOnPrimaryMuted' && !isTextOnPrimaryMutedContrastPassing) {
+                                warningContent = (
+                                  <>
+                                    <p>
+                                      Contrast ratio: {textOnPrimaryMutedContrastRatio !== null ? `${textOnPrimaryMutedContrastRatio.toFixed(2)}:1` : 'n/a'} (required {WCAG_AA_TEXT_CONTRAST}:1)
+                                    </p>
+                                    <p className="mt-1 font-semibold">This color does not meet WCAG AA on the primary color.</p>
+                                    {!isTextOnPrimaryMutedContrastPassing && suggestedTextOnPrimaryMuted && suggestedTextOnPrimaryMuted !== normalizedTextOnPrimaryMuted ? (
+                                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                                        <span>Try this accessible value: {suggestedTextOnPrimaryMuted}</span>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          className="h-8 px-3 text-sm"
+                                          onClick={() => handleWidgetThemeChange('textOnPrimaryMuted', suggestedTextOnPrimaryMuted)}
+                                        >
+                                          Apply
+                                        </Button>
+                                      </div>
+                                    ) : null}
+                                    {!isTextOnPrimaryMutedContrastPassing && textOnPrimaryMutedContrastRatio === null ? (
                                       <p className="mt-1 font-semibold">Enter a valid hex value to run the contrast check.</p>
                                     ) : null}
                                   </>
@@ -1355,49 +1928,301 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                   </div>
                 </section>
 
-                <section id="widget-button-style" ref={registerWidgetSectionRef('widget-button-style')} className="space-y-3 border-t-2 border-[var(--sidebar-border-color-strong)] pt-8">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-lg font-semibold text-[var(--sidebar-text-primary)]">Button style</p>
-                    <div className="flex items-center gap-2">
-                      <span className="rounded-full border border-[var(--sidebar-border-color)] bg-[var(--sidebar-menu-bg)] px-2 py-0.5 text-xs font-semibold text-[var(--sidebar-text-secondary)]">
-                        Placeholder
-                      </span>
-                      <Button type="button" variant="outline" className="h-8 px-3 text-sm" disabled>
-                        Reset section
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="text-sm text-[var(--sidebar-text-secondary)]">Temporary section placeholder. Button style controls will be connected here.</p>
-                </section>
-
-                <section id="widget-input-style" ref={registerWidgetSectionRef('widget-input-style')} className="space-y-3 border-t-2 border-[var(--sidebar-border-color-strong)] pt-8">
+                <section id="widget-input-style" ref={registerWidgetSectionRef('widget-input-style')} className="space-y-4 border-t-2 border-[var(--sidebar-border-color-strong)] pt-8 pb-8">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-lg font-semibold text-[var(--sidebar-text-primary)]">Input style</p>
                     <div className="flex items-center gap-2">
-                      <span className="rounded-full border border-[var(--sidebar-border-color)] bg-[var(--sidebar-menu-bg)] px-2 py-0.5 text-xs font-semibold text-[var(--sidebar-text-secondary)]">
-                        Placeholder
-                      </span>
-                      <Button type="button" variant="outline" className="h-8 px-3 text-sm" disabled>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-8 px-3 text-sm"
+                        onClick={resetWidgetInputStyleSection}
+                        disabled={widgetInputStyle.type === defaultWidgetInputStyle.type && widgetInputStyle.radius === defaultWidgetInputStyle.radius}
+                      >
                         Reset section
                       </Button>
                     </div>
                   </div>
-                  <p className="text-sm text-[var(--sidebar-text-secondary)]">Temporary section placeholder. Input controls will be connected here.</p>
+
+                  <p className="text-sm text-[var(--sidebar-text-secondary)]">Manage input field structure for the widget form without duplicating colors from Appearance.</p>
+
+                  <div className="divide-y divide-[var(--sidebar-border-color)]">
+                    <div className="grid gap-3 py-3 grid-cols-1">
+                      <div className="min-w-0 space-y-1">
+                        <p className="font-medium text-[var(--sidebar-text-primary)]">Input type</p>
+                        <p className="text-sm text-[var(--sidebar-text-secondary)]">Switch input fields between Outline and Filled styles.</p>
+                      </div>
+
+                      <fieldset className="grid gap-3 min-w-0 w-full">
+                        <legend className="sr-only">Input type</legend>
+                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                          <label className="cursor-pointer">
+                            <input
+                              type="radio"
+                              name="widget-input-type"
+                              value="outline"
+                              checked={widgetInputStyle.type === 'outline'}
+                              onChange={(event) => handleWidgetInputTypeChange(event.target.value)}
+                              className="peer sr-only"
+                            />
+                            <span className={`flex min-w-[220px] flex-col gap-3 rounded-xl border p-3 transition-colors hover:border-[var(--sidebar-border-color-strong)] ${
+                              widgetInputStyle.type === 'outline'
+                                ? 'border-[var(--sidebar-border-color-strong)] bg-[var(--sidebar-bg)]'
+                                : 'border-[var(--sidebar-border-color)] bg-[var(--sidebar-menu-bg)]'
+                            }`}>
+                              <span className="space-y-1">
+                                <span className="flex items-center gap-2 text-sm font-semibold text-[var(--sidebar-text-primary)]">
+                                  <span className={`flex h-4 w-4 items-center justify-center rounded-full border bg-white ${
+                                    widgetInputStyle.type === 'outline'
+                                      ? 'border-[var(--sidebar-text-primary)]'
+                                      : 'border-[var(--sidebar-border-color-strong)]'
+                                  }`}>
+                                    <span className={`h-2 w-2 rounded-full bg-[var(--sidebar-text-primary)] transition-opacity ${
+                                      widgetInputStyle.type === 'outline' ? 'opacity-100' : 'opacity-0'
+                                    }`} />
+                                  </span>
+                                  <span>Outline</span>
+                                </span>
+                                <span className="block min-h-10 text-sm leading-5 text-[var(--sidebar-text-secondary)]">
+                                  Surface background with Border color outline.
+                                </span>
+                              </span>
+                              <span
+                                className="inline-flex h-9 items-center rounded-md border px-3 text-sm"
+                                style={{
+                                  borderColor: widgetTheme.border,
+                                  color: widgetTheme.textMuted,
+                                  backgroundColor: effectiveWidgetSurfaceColor,
+                                  borderRadius: `${widgetInputStyle.radius}px`,
+                                }}
+                              >
+                                Sample text
+                              </span>
+                            </span>
+                          </label>
+
+                          <label className="cursor-pointer">
+                            <input
+                              type="radio"
+                              name="widget-input-type"
+                              value="filled"
+                              checked={widgetInputStyle.type === 'filled'}
+                              onChange={(event) => handleWidgetInputTypeChange(event.target.value)}
+                              className="peer sr-only"
+                            />
+                            <span className={`flex min-w-[220px] flex-col gap-3 rounded-xl border p-3 transition-colors hover:border-[var(--sidebar-border-color-strong)] ${
+                              widgetInputStyle.type === 'filled'
+                                ? 'border-[var(--sidebar-border-color-strong)] bg-[var(--sidebar-bg)]'
+                                : 'border-[var(--sidebar-border-color)] bg-[var(--sidebar-menu-bg)]'
+                            }`}>
+                              <span className="space-y-1">
+                                <span className="flex items-center gap-2 text-sm font-semibold text-[var(--sidebar-text-primary)]">
+                                  <span className={`flex h-4 w-4 items-center justify-center rounded-full border bg-white ${
+                                    widgetInputStyle.type === 'filled'
+                                      ? 'border-[var(--sidebar-text-primary)]'
+                                      : 'border-[var(--sidebar-border-color-strong)]'
+                                  }`}>
+                                    <span className={`h-2 w-2 rounded-full bg-[var(--sidebar-text-primary)] transition-opacity ${
+                                      widgetInputStyle.type === 'filled' ? 'opacity-100' : 'opacity-0'
+                                    }`} />
+                                  </span>
+                                  <span>Filled</span>
+                                </span>
+                                <span className="block min-h-10 text-sm leading-5 text-[var(--sidebar-text-secondary)]">
+                                  Uses dedicated Input filled surface color configured below.
+                                </span>
+                              </span>
+                              <span
+                                className="inline-flex h-9 items-center rounded-md border px-3 text-sm"
+                                style={{
+                                  borderColor: 'transparent',
+                                  color: widgetTheme.textMuted,
+                                  backgroundColor: widgetTheme.inputFilledSurface,
+                                  borderRadius: `${widgetInputStyle.radius}px`,
+                                }}
+                              >
+                                Sample text
+                              </span>
+                            </span>
+                          </label>
+                        </div>
+                      </fieldset>
+                    </div>
+
+                    {widgetInputStyle.type === 'filled' ? (
+                      <div className={`grid gap-3 py-3 ${isConfigurationCompact ? 'grid-cols-1' : 'md:grid-cols-[minmax(0,1fr)_220px] md:items-start'}`}>
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="font-medium text-[var(--sidebar-text-primary)]">Input filled surface</p>
+                            <div className={`mt-0.5 h-5 w-5 shrink-0 rounded-full border border-[var(--sidebar-border-color-strong)] ${isConfigurationCompact ? 'block' : 'md:hidden'}`} style={{ backgroundColor: widgetTheme.inputFilledSurface }} />
+                          </div>
+                          <p className="text-sm text-[var(--sidebar-text-secondary)]">Background color used by inputs in Filled style.</p>
+                        </div>
+
+                        <div className="relative">
+                          <input
+                            id="widget-color-picker-inputFilledSurface"
+                            type="color"
+                            value={normalizedInputFilledSurface ?? derivedInputFilledSurfaceDefault}
+                            onChange={(event) => handleWidgetThemeChange('inputFilledSurface', event.target.value)}
+                            className="absolute h-0 w-0 opacity-0"
+                            aria-label="Input filled surface picker"
+                            tabIndex={-1}
+                          />
+                          <label
+                            htmlFor="widget-color-picker-inputFilledSurface"
+                            className="absolute left-2 top-1/2 z-10 block h-5 w-5 -translate-y-1/2 rounded border border-[var(--sidebar-border-color-strong)]"
+                            style={{ backgroundColor: widgetTheme.inputFilledSurface }}
+                            title="Open input filled surface picker"
+                          />
+                          <Input
+                            value={widgetThemeDraft.inputFilledSurface}
+                            onChange={(event) => handleWidgetThemeHexInputChange('inputFilledSurface', event.target.value)}
+                            onBlur={() => handleWidgetThemeHexInputBlur('inputFilledSurface')}
+                            placeholder="#000000"
+                            spellCheck={false}
+                            aria-label="Input filled surface hex value"
+                            className="h-9 pl-10 pr-10"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="absolute right-1 top-1/2 z-20 h-7 w-7 -translate-y-1/2 p-0 text-[var(--sidebar-text-secondary)] hover:bg-[var(--sidebar-item-hover-bg)] hover:text-[var(--sidebar-text-primary)]"
+                            title={`Reset Input filled surface to default (${derivedInputFilledSurfaceDefault}).`}
+                            aria-label="Reset Input filled surface to default"
+                            onClick={() => resetWidgetThemeToken('inputFilledSurface')}
+                            disabled={isInputFilledSurfaceDefault}
+                          >
+                            <X className="h-4 w-4" strokeWidth={2.5} />
+                          </Button>
+                        </div>
+
+                        {!areInputFilledSurfaceTextColorsPassing ? (
+                          <div
+                            className="md:col-span-2 w-full rounded-lg border px-4 py-3 text-sm"
+                            style={{
+                              borderColor: 'var(--widget-status-warning-border)',
+                              backgroundColor: 'var(--widget-status-warning-bg)',
+                              color: 'var(--widget-status-warning-text)',
+                            }}
+                          >
+                            <p className="font-semibold">Filled input contrast check ({WCAG_AA_TEXT_CONTRAST}:1 required).</p>
+                            <p className="mt-1 flex items-center gap-2">
+                              {isTextPrimaryOnInputFilledSurfacePassing ? (
+                                <CircleCheck className="h-4 w-4 shrink-0" style={{ color: 'var(--sidebar-text-secondary)' }} />
+                              ) : (
+                                <CircleX className="h-4 w-4 shrink-0" style={{ color: 'var(--widget-status-warning-text)' }} />
+                              )}
+                              <span>
+                                Text Primary: {textPrimaryOnInputFilledSurfaceContrastRatio !== null ? `${textPrimaryOnInputFilledSurfaceContrastRatio.toFixed(2)}:1` : 'n/a'}
+                                {!isTextPrimaryOnInputFilledSurfacePassing ? <span className="font-semibold"> - does not meet accessibility.</span> : ''}
+                              </span>
+                            </p>
+                            {!isTextPrimaryOnInputFilledSurfacePassing && suggestedTextPrimaryOnInputFilledSurface ? (
+                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <span>Suggested accessible Text Primary in Appearance: {suggestedTextPrimaryOnInputFilledSurface}</span>
+                                {suggestedTextPrimaryOnInputFilledSurface !== normalizedTextPrimary ? (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-8 px-3 text-sm"
+                                    onClick={() => handleWidgetThemeChange('textPrimary', suggestedTextPrimaryOnInputFilledSurface)}
+                                  >
+                                    Apply
+                                  </Button>
+                                ) : null}
+                              </div>
+                            ) : null}
+
+                            <p className="mt-2 flex items-center gap-2">
+                              {isTextMutedOnInputFilledSurfacePassing ? (
+                                <CircleCheck className="h-4 w-4 shrink-0" style={{ color: 'var(--sidebar-text-secondary)' }} />
+                              ) : (
+                                <CircleX className="h-4 w-4 shrink-0" style={{ color: 'var(--widget-status-warning-text)' }} />
+                              )}
+                              <span>
+                                Text Muted: {textMutedOnInputFilledSurfaceContrastRatio !== null ? `${textMutedOnInputFilledSurfaceContrastRatio.toFixed(2)}:1` : 'n/a'}
+                                {!isTextMutedOnInputFilledSurfacePassing ? <span className="font-semibold"> - does not meet accessibility.</span> : ''}
+                              </span>
+                            </p>
+                            {!isTextMutedOnInputFilledSurfacePassing && suggestedTextMutedOnInputFilledSurface ? (
+                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <span>Suggested accessible Text Muted in Appearance: {suggestedTextMutedOnInputFilledSurface}</span>
+                                {suggestedTextMutedOnInputFilledSurface !== normalizedTextMuted ? (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-8 px-3 text-sm"
+                                    onClick={() => handleWidgetThemeChange('textMuted', suggestedTextMutedOnInputFilledSurface)}
+                                  >
+                                    Apply
+                                  </Button>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    <div className={`grid gap-3 py-3 ${isConfigurationCompact ? 'grid-cols-1' : 'md:grid-cols-[minmax(0,1fr)_220px] md:items-start'}`}>
+                      <div className="min-w-0 space-y-1">
+                        <p className="font-medium text-[var(--sidebar-text-primary)]">Border radius</p>
+                        <p className="text-sm text-[var(--sidebar-text-secondary)]">Set corner roundness for widget inputs (0 to 16px).</p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={16}
+                          step={1}
+                          value={widgetInputStyle.radius}
+                          onChange={(event) => handleWidgetInputRadiusChange(Number(event.target.value))}
+                          aria-label="Widget input radius in pixels"
+                          className="h-9"
+                        />
+                        <input
+                          type="range"
+                          min={0}
+                          max={16}
+                          step={1}
+                          value={widgetInputStyle.radius}
+                          onChange={(event) => handleWidgetInputRadiusChange(Number(event.target.value))}
+                          aria-label="Widget input radius slider"
+                          className="h-2 w-full cursor-pointer accent-[var(--widget-color-primary)]"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </section>
 
                 <section id="widget-density" ref={registerWidgetSectionRef('widget-density')} className="space-y-3 border-t-2 border-[var(--sidebar-border-color-strong)] pt-8">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-lg font-semibold text-[var(--sidebar-text-primary)]">Density</p>
-                    <div className="flex items-center gap-2">
-                      <span className="rounded-full border border-[var(--sidebar-border-color)] bg-[var(--sidebar-menu-bg)] px-2 py-0.5 text-xs font-semibold text-[var(--sidebar-text-secondary)]">
-                        Placeholder
-                      </span>
-                      <Button type="button" variant="outline" className="h-8 px-3 text-sm" disabled>
-                        Reset section
-                      </Button>
-                    </div>
                   </div>
-                  <p className="text-sm text-[var(--sidebar-text-secondary)]">Temporary section placeholder. Density controls will be connected here.</p>
+                  <p className="text-sm text-[var(--sidebar-text-secondary)]">Temporary presets for preview widget spacing: Compact, Comfortable, Spacius.</p>
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {widgetDensityPresetOptions.map((option) => {
+                      const isActive = widgetDensityPreset === option.id
+
+                      return (
+                        <Button
+                          key={option.id}
+                          type="button"
+                          variant="outline"
+                          aria-pressed={isActive}
+                          className={`h-9 px-4 text-sm ${isActive ? 'border-[var(--widget-color-primary)] bg-[var(--sidebar-menu-bg)] text-[var(--sidebar-text-primary)]' : ''}`}
+                          onClick={() => setWidgetDensityPreset(option.id)}
+                        >
+                          {option.label}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-xs text-[var(--sidebar-text-secondary)]">
+                    Horizontal padding: {activeWidgetDensityPreset.horizontalPadding}px. Vertical spacing: {activeWidgetDensityPreset.verticalSpacing}px.
+                  </p>
                 </section>
               </div>
             </section>
@@ -1459,15 +2284,17 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                 <CardContent
                   className="flex flex-col"
                   style={{
-                    gap: 'var(--widget-space-md)',
-                    paddingInline: 'var(--widget-space-md)',
+                    gap: 'var(--widget-density-gap)',
+                    paddingInline: 'var(--widget-density-padding-inline)',
                     paddingBottom: 'var(--widget-space-lg)',
                   }}
                 >
                   {elementVisibility.setUpWallet ? (
                     <PaymentOptionRow
                       isCompact={isWidgetCompact}
-                      className="relative flex items-center justify-center"
+                      buttonType={widgetButtonStyle.type}
+                      buttonRadius={widgetButtonStyle.radius}
+                      className="relative"
                       style={{
                         paddingLeft: isWidgetCompact ? 'var(--widget-option-padding-x-compact)' : 'var(--widget-option-padding-x)',
                         paddingRight: isWidgetCompact ? '72px' : '84px',
@@ -1475,14 +2302,19 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                         lineHeight: 'var(--widget-line-height-snug)',
                       }}
                     >
-                      <span className="absolute left-1/2 top-1/2 inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 text-center">
+                      <img
+                        src={graphics.walletSetupIcon}
+                        alt=""
+                        aria-hidden="true"
+                        className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 object-contain"
+                      />
+                      <span className="absolute left-1/2 top-1/2 inline-flex -translate-x-1/2 -translate-y-1/2 items-center text-center">
                         <span>Set Up Wallet</span>
-                        <img src={graphics.walletSetupIcon} alt="" aria-hidden="true" className="h-4 w-4 object-contain" />
                       </span>
                       <span
                         className="absolute rounded-full bg-[var(--widget-color-primary)] px-2 py-0.5 text-[var(--widget-text-on-primary)]"
                         style={{
-                          top: 0,
+                          top: '50%',
                           right: isWidgetCompact ? '10px' : '12px',
                           transform: 'translateY(-50%)',
                           borderRadius: 'var(--widget-radius-pill)',
@@ -1491,7 +2323,8 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                           lineHeight: 'var(--widget-line-height-snug)',
                         }}
                       >
-                        10% Cashback
+                        <span>10%</span>{' '}
+                        <span style={{ fontSize: '0.9em' }}>Cashback</span>
                       </span>
                     </PaymentOptionRow>
                   ) : null}
@@ -1499,6 +2332,8 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                   {elementVisibility.payByNewCard && elementVisibility.savedCards ? (
                     <PaymentOptionRow
                       isCompact={isWidgetCompact}
+                      buttonType={widgetButtonStyle.type}
+                      buttonRadius={widgetButtonStyle.radius}
                       className="relative"
                       style={{
                         paddingLeft: isWidgetCompact ? 'var(--widget-option-padding-x-compact)' : 'var(--widget-option-padding-x)',
@@ -1524,7 +2359,7 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                           Bank of Swiss
                         </span>
                         <span
-                          className="block truncate text-[var(--widget-text-muted)]"
+                          className="widget-option-muted block truncate"
                           style={{
                             fontSize: 'var(--widget-font-size-caption)',
                             fontWeight: 'var(--widget-font-weight-regular)',
@@ -1537,7 +2372,7 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                       <span
                         className="absolute rounded-full bg-[var(--widget-color-primary)] px-2 py-0.5 text-[var(--widget-text-on-primary)]"
                         style={{
-                          top: 0,
+                          top: '50%',
                           right: isWidgetCompact ? '10px' : '12px',
                           transform: 'translateY(-50%)',
                           borderRadius: 'var(--widget-radius-pill)',
@@ -1555,11 +2390,17 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                     <div
                       className={`w-full border text-[var(--widget-text-primary)] transition-colors ${
                         isPayByNewCardOpen
-                          ? 'border-[var(--widget-color-primary)]'
-                          : 'border-[var(--widget-color-border)] hover:border-[var(--widget-color-primary)]'
+                          ? widgetButtonStyle.type === 'outline'
+                            ? 'border-[var(--widget-color-primary)] bg-[var(--widget-color-surface)]'
+                            : 'border-[var(--widget-color-primary)]'
+                          : widgetButtonStyle.type === 'filled'
+                            ? 'border-transparent bg-[var(--widget-option-button-bg)] hover:bg-[var(--widget-option-button-bg-hover)]'
+                            : widgetButtonStyle.type === 'tonal'
+                              ? 'border-transparent bg-[var(--widget-option-button-tonal-bg)] hover:bg-[var(--widget-option-button-tonal-bg-hover)]'
+                              : 'border-[var(--widget-color-border)] bg-[var(--widget-color-surface)] hover:border-[var(--widget-color-primary)] hover:bg-[var(--widget-option-hover-bg)]'
                       }`}
                       style={{
-                        borderRadius: isPayByNewCardOpen ? 'var(--widget-radius-card)' : 'var(--widget-radius-pill)',
+                        borderRadius: isPayByNewCardOpen ? `${payByNewCardOpenRadius}px` : `${widgetButtonStyle.radius}px`,
                         boxShadow: isPayByNewCardOpen
                           ? `0 0 0 var(--widget-form-ring-width) hsl(var(--primary) / var(--widget-form-ring-opacity))`
                           : 'none',
@@ -1567,11 +2408,14 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                     >
                       <PaymentOptionRow
                         isCompact={isWidgetCompact}
+                        buttonType={widgetButtonStyle.type}
+                        buttonRadius={widgetButtonStyle.radius}
+                        useFilledTextColors={!isPayByNewCardOpen && widgetButtonStyle.type === 'filled'}
                         withBorder={false}
-                        hoverable={!isPayByNewCardOpen}
+                        hoverable={false}
                         className="w-full"
                         style={{
-                          borderRadius: isPayByNewCardOpen ? 'var(--widget-radius-card)' : 'var(--widget-radius-pill)',
+                          borderRadius: isPayByNewCardOpen ? `${payByNewCardOpenRadius}px` : `${widgetButtonStyle.radius}px`,
                         }}
                         onClick={() => setIsPayByNewCardOpen((prev) => !prev)}
                         aria-expanded={isPayByNewCardOpen}
@@ -1597,31 +2441,31 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                           id="widget-pay-by-new-card-form"
                           className="flex flex-col"
                           style={{
-                            gap: 'var(--widget-space-lg)',
-                            padding: '0 var(--widget-space-md) var(--widget-space-md)',
+                            gap: 'var(--widget-density-gap)',
+                            padding: '0 var(--widget-density-padding-inline) var(--widget-density-padding-inline)',
                           }}
                           onSubmit={(event) => event.preventDefault()}
                         >
 
                     <div className="space-y-2">
                       <label className="block text-[var(--widget-text-primary)]" style={{ fontSize: 'var(--widget-font-size-caption)', fontWeight: 'var(--widget-font-weight-regular)' }} htmlFor="widget-name-on-card">Name on card</label>
-                      <Input id="widget-name-on-card" placeholder="John Doe" style={{ height: 'var(--widget-control-height-input)', fontSize: 'var(--widget-font-size-caption)' }} />
+                      <Input id="widget-name-on-card" placeholder="John Doe" className="border-[var(--widget-input-border)] bg-[var(--widget-input-bg)] text-[var(--widget-input-text)] placeholder:text-[var(--widget-input-placeholder)] focus-visible:ring-[var(--widget-input-ring)]" style={{ height: 'var(--widget-control-height-input)', fontSize: 'var(--widget-font-size-caption)', borderRadius: 'var(--widget-input-radius)' }} />
                     </div>
 
                     <div className="space-y-2">
                       <label className="block text-[var(--widget-text-primary)]" style={{ fontSize: 'var(--widget-font-size-caption)', fontWeight: 'var(--widget-font-weight-regular)' }} htmlFor="widget-card-number">Card Information</label>
                       {isCardInformationSingleRow ? (
                         <div className="grid grid-cols-[minmax(0,1fr)_96px_84px] gap-2">
-                          <Input id="widget-card-number" placeholder="1234 5678 9012 3456" className="w-full" style={{ height: 'var(--widget-control-height-input)', fontSize: 'var(--widget-font-size-caption)' }} />
-                          <Input placeholder="MM/YY" style={{ height: 'var(--widget-control-height-input)', fontSize: 'var(--widget-font-size-caption)' }} aria-label="Expiry date" />
-                          <Input placeholder="CVC" style={{ height: 'var(--widget-control-height-input)', fontSize: 'var(--widget-font-size-caption)' }} aria-label="Security code" />
+                          <Input id="widget-card-number" placeholder="1234 5678 9012 3456" className="w-full border-[var(--widget-input-border)] bg-[var(--widget-input-bg)] text-[var(--widget-input-text)] placeholder:text-[var(--widget-input-placeholder)] focus-visible:ring-[var(--widget-input-ring)]" style={{ height: 'var(--widget-control-height-input)', fontSize: 'var(--widget-font-size-caption)', borderRadius: 'var(--widget-input-radius)' }} />
+                          <Input placeholder="MM/YY" className="border-[var(--widget-input-border)] bg-[var(--widget-input-bg)] text-[var(--widget-input-text)] placeholder:text-[var(--widget-input-placeholder)] focus-visible:ring-[var(--widget-input-ring)]" style={{ height: 'var(--widget-control-height-input)', fontSize: 'var(--widget-font-size-caption)', borderRadius: 'var(--widget-input-radius)' }} aria-label="Expiry date" />
+                          <Input placeholder="CVC" className="border-[var(--widget-input-border)] bg-[var(--widget-input-bg)] text-[var(--widget-input-text)] placeholder:text-[var(--widget-input-placeholder)] focus-visible:ring-[var(--widget-input-ring)]" style={{ height: 'var(--widget-control-height-input)', fontSize: 'var(--widget-font-size-caption)', borderRadius: 'var(--widget-input-radius)' }} aria-label="Security code" />
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          <Input id="widget-card-number" placeholder="1234 5678 9012 3456" className="w-full" style={{ height: 'var(--widget-control-height-input)', fontSize: 'var(--widget-font-size-caption)' }} />
+                          <Input id="widget-card-number" placeholder="1234 5678 9012 3456" className="w-full border-[var(--widget-input-border)] bg-[var(--widget-input-bg)] text-[var(--widget-input-text)] placeholder:text-[var(--widget-input-placeholder)] focus-visible:ring-[var(--widget-input-ring)]" style={{ height: 'var(--widget-control-height-input)', fontSize: 'var(--widget-font-size-caption)', borderRadius: 'var(--widget-input-radius)' }} />
                           <div className="grid grid-cols-2 gap-2">
-                            <Input placeholder="MM/YY" style={{ height: 'var(--widget-control-height-input)', fontSize: 'var(--widget-font-size-caption)' }} aria-label="Expiry date" />
-                            <Input placeholder="CVC" style={{ height: 'var(--widget-control-height-input)', fontSize: 'var(--widget-font-size-caption)' }} aria-label="Security code" />
+                            <Input placeholder="MM/YY" className="border-[var(--widget-input-border)] bg-[var(--widget-input-bg)] text-[var(--widget-input-text)] placeholder:text-[var(--widget-input-placeholder)] focus-visible:ring-[var(--widget-input-ring)]" style={{ height: 'var(--widget-control-height-input)', fontSize: 'var(--widget-font-size-caption)', borderRadius: 'var(--widget-input-radius)' }} aria-label="Expiry date" />
+                            <Input placeholder="CVC" className="border-[var(--widget-input-border)] bg-[var(--widget-input-bg)] text-[var(--widget-input-text)] placeholder:text-[var(--widget-input-placeholder)] focus-visible:ring-[var(--widget-input-ring)]" style={{ height: 'var(--widget-control-height-input)', fontSize: 'var(--widget-font-size-caption)', borderRadius: 'var(--widget-input-radius)' }} aria-label="Security code" />
                           </div>
                         </div>
                       )}
@@ -1629,11 +2473,16 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
 
                     <div className="space-y-2">
                       <label className="block text-[var(--widget-text-primary)]" style={{ fontSize: 'var(--widget-font-size-caption)', fontWeight: 'var(--widget-font-weight-regular)' }} htmlFor="widget-postal-code">Postal code</label>
-                      <Input id="widget-postal-code" placeholder="Postal code" style={{ height: 'var(--widget-control-height-input)', fontSize: 'var(--widget-font-size-caption)' }} />
+                      <Input id="widget-postal-code" placeholder="Postal code" className="border-[var(--widget-input-border)] bg-[var(--widget-input-bg)] text-[var(--widget-input-text)] placeholder:text-[var(--widget-input-placeholder)] focus-visible:ring-[var(--widget-input-ring)]" style={{ height: 'var(--widget-control-height-input)', fontSize: 'var(--widget-font-size-caption)', borderRadius: 'var(--widget-input-radius)' }} />
                     </div>
 
                     <label className={`text-[var(--widget-text-primary)] ${isWidgetCompact ? 'grid grid-cols-[auto_1fr] items-start gap-2' : 'flex items-center gap-2'}`} style={{ fontSize: 'var(--widget-font-size-caption)' }}>
-                      <Switch aria-label="Save this card" />
+                      <Switch
+                        aria-label="Save this card"
+                        checked={isSaveCardEnabled}
+                        onCheckedChange={setIsSaveCardEnabled}
+                        className="data-[state=checked]:bg-[var(--widget-switch-checked-bg)] data-[state=unchecked]:bg-[var(--widget-switch-unchecked-bg)] focus-visible:ring-[var(--widget-switch-ring)]"
+                      />
                       Save this card for faster checkout
                     </label>
 
@@ -1642,7 +2491,7 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                       className="w-full rounded-full bg-[var(--widget-color-primary)] text-[var(--widget-text-on-primary)] hover:bg-[var(--widget-color-primary)]/90"
                       style={{
                         height: 'var(--widget-control-height-button)',
-                        borderRadius: 'var(--widget-radius-pill)',
+                        borderRadius: `${widgetButtonStyle.radius}px`,
                         fontSize: 'var(--widget-font-size-body)',
                         fontWeight: 'var(--widget-font-weight-semibold)',
                       }}
@@ -1655,7 +2504,7 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                   ) : null}
 
                   {elementVisibility.payByOtherMethods ? (
-                    <PaymentOptionRow isCompact={isWidgetCompact}>
+                    <PaymentOptionRow isCompact={isWidgetCompact} buttonType={widgetButtonStyle.type} buttonRadius={widgetButtonStyle.radius}>
                       <span className="inline-flex w-full items-center justify-center gap-2" style={{ fontWeight: 'var(--widget-font-weight-semibold)' }}>
                         <span>Pay by other methods</span>
                         <span className="inline-flex items-center gap-1" aria-label="Apple Pay, PayPal, Google Pay">
@@ -1674,7 +2523,7 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                   ) : null}
 
                   {elementVisibility.payByBank ? (
-                    <PaymentOptionRow isCompact={isWidgetCompact}>
+                    <PaymentOptionRow isCompact={isWidgetCompact} buttonType={widgetButtonStyle.type} buttonRadius={widgetButtonStyle.radius}>
                       <span className="inline-flex w-full items-center justify-center gap-2" style={{ fontWeight: 'var(--widget-font-weight-semibold)' }}>
                         <span>Pay by Bank</span>
                         <img src={graphics.bankPayIcon} alt="Bank" className="h-5 w-5 rounded-[4px] object-contain" />
@@ -1688,7 +2537,7 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                     className="w-full rounded-full text-[var(--widget-color-primary)] hover:text-[var(--widget-color-primary)]"
                     style={{
                       height: 'var(--widget-control-height-button)',
-                      borderRadius: 'var(--widget-radius-pill)',
+                      borderRadius: `${widgetButtonStyle.radius}px`,
                       fontSize: 'var(--widget-font-size-body)',
                       fontWeight: 'var(--widget-font-weight-semibold)',
                     }}
