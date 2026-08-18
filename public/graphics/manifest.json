@@ -1,0 +1,42 @@
+{
+  "platformSidebarLogo": {
+    "fileName": "platformSidebarLogo.svg",
+    "updatedAt": 1787048534807
+  },
+  "profileImage": {
+    "fileName": "profileImage.svg",
+    "updatedAt": 1787048555176
+  },
+  "walletSetupIcon": {
+    "fileName": "walletSetupIcon.svg",
+    "updatedAt": 1787049465187
+  },
+  "merchantHeaderLogo": {
+    "fileName": "merchantHeaderLogo.svg",
+    "updatedAt": 1787049704010
+  },
+  "visaCardIcon": {
+    "fileName": "visaCardIcon.svg",
+    "updatedAt": 1787049805062
+  },
+  "mastercardCardIcon": {
+    "fileName": "mastercardCardIcon.svg",
+    "updatedAt": 1787049809242
+  },
+  "amexCardIcon": {
+    "fileName": "amexCardIcon.svg",
+    "updatedAt": 1787049814604
+  },
+  "applePayIcon": {
+    "fileName": "applePayIcon.svg",
+    "updatedAt": 1787049957086
+  },
+  "payPalIcon": {
+    "fileName": "payPalIcon.svg",
+    "updatedAt": 1787049961411
+  },
+  "googlePayIcon": {
+    "fileName": "googlePayIcon.svg",
+    "updatedAt": 1787049965958
+  }
+}

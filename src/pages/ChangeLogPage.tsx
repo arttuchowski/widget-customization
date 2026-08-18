@@ -3,6 +3,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 const entries = [
   {
+    date: '2026-08-18',
+    title: 'Graphics upload/save flow rewrite and persistence hardening',
+    items: [
+      'Rewrote the Design System graphics flow so Upload always updates preview and marks changes as pending, while Save to files performs the actual project write.',
+      'Removed repeated folder-picker loops and stabilized the connected-folder state to prevent reconnect prompts on each save attempt.',
+      'Moved persisted graphic overrides to public/graphics with a manifest file, so saved assets are loaded after refresh and remain portable across machines.',
+      'Preserved original uploaded image formats during save (including SVG) instead of forcing conversion, eliminating format-mismatch corruption after reload.',
+      'Added clearer error messaging for folder connection and unsupported image-save scenarios in the Graphics panel.',
+    ],
+  },
+  {
     date: '2026-08-07',
     title: 'Tonal button variant added to button style',
     items: [

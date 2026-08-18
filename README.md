@@ -14,7 +14,7 @@ This project reproduces the Figma screen (node: `393:1131`) as a React + TypeScr
 ## Requirements
 
 - Node.js 20+ (LTS recommended)
-- npm 10+![alt text](image.png)
+- npm 10+
 
 Check versions:
 
@@ -77,6 +77,9 @@ Or for a production build:
 npm run build
 npm run preview
 ```
+
+Graphics uploaded in the Design System are written into `src/assets/` after you connect the project folder in the app and click `Save to files`.
+That makes the committed source the real source of truth, so the app looks the same on other computers after the files are shared or pushed.
 
 ### Option B: share the production build
 

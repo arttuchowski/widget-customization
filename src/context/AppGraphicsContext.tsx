@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
+import { loadGraphicsOverridesFromPublic } from '@/lib/project-assets'
+
 import defaultMerchantHeaderLogo from '@/assets/merchant-logo.png'
 import defaultPlatformSidebarLogo from '@/assets/sidebar-app-logo.png'
 import defaultProfileImage from '@/assets/sidebar-profile-placeholder.png'
@@ -11,8 +13,6 @@ import defaultApplePayIcon from '@/assets/pay-other-apple-icon.svg'
 import defaultPayPalIcon from '@/assets/pay-other-paypal-icon.svg'
 import defaultGooglePayIcon from '@/assets/pay-other-google-icon.svg'
 import defaultBankPayIcon from '@/assets/pay-bank-icon.svg'
-
-const GRAPHICS_STORAGE_KEY = 'rezolve-app-graphics'
 
 type GraphicsAssetKey =
   | 'platformSidebarLogo'
@@ -47,6 +47,7 @@ interface AppGraphicsContextValue {
   graphics: GraphicsState
   updateGraphic: (assetKey: GraphicsAssetKey, imageDataUrl: string) => void
   resetGraphic: (assetKey: GraphicsAssetKey) => void
+  resetAllGraphics: () => void
 }
 
 const AppGraphicsContext = createContext<AppGraphicsContextValue | null>(null)
@@ -55,43 +56,28 @@ interface AppGraphicsProviderProps {
   children: ReactNode
 }
 
-const resolveStoredGraphics = (): GraphicsState => {
-  if (typeof window === 'undefined') {
-    return defaultGraphicsAssets
-  }
-
-  const stored = window.localStorage.getItem(GRAPHICS_STORAGE_KEY)
-  if (!stored) {
-    return defaultGraphicsAssets
-  }
-
-  try {
-    const parsed = JSON.parse(stored) as Partial<GraphicsState>
-
-    return {
-      platformSidebarLogo: parsed.platformSidebarLogo || defaultGraphicsAssets.platformSidebarLogo,
-      profileImage: parsed.profileImage || defaultGraphicsAssets.profileImage,
-      merchantHeaderLogo: parsed.merchantHeaderLogo || defaultGraphicsAssets.merchantHeaderLogo,
-      walletSetupIcon: parsed.walletSetupIcon || defaultGraphicsAssets.walletSetupIcon,
-      visaCardIcon: parsed.visaCardIcon || defaultGraphicsAssets.visaCardIcon,
-      mastercardCardIcon: parsed.mastercardCardIcon || defaultGraphicsAssets.mastercardCardIcon,
-      amexCardIcon: parsed.amexCardIcon || defaultGraphicsAssets.amexCardIcon,
-      applePayIcon: parsed.applePayIcon || defaultGraphicsAssets.applePayIcon,
-      payPalIcon: parsed.payPalIcon || defaultGraphicsAssets.payPalIcon,
-      googlePayIcon: parsed.googlePayIcon || defaultGraphicsAssets.googlePayIcon,
-      bankPayIcon: parsed.bankPayIcon || defaultGraphicsAssets.bankPayIcon,
-    }
-  } catch {
-    return defaultGraphicsAssets
-  }
-}
-
 export function AppGraphicsProvider({ children }: AppGraphicsProviderProps) {
-  const [graphics, setGraphics] = useState<GraphicsState>(resolveStoredGraphics)
+  const [graphics, setGraphics] = useState<GraphicsState>(defaultGraphicsAssets)
 
   useEffect(() => {
-    window.localStorage.setItem(GRAPHICS_STORAGE_KEY, JSON.stringify(graphics))
-  }, [graphics])
+    let isMounted = true
+
+    loadGraphicsOverridesFromPublic()
+      .then((overrides) => {
+        if (!isMounted) {
+          return
+        }
+
+        setGraphics((prev) => ({ ...prev, ...overrides }))
+      })
+      .catch(() => {
+        // Ignore optional overrides loading errors.
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const value = useMemo<AppGraphicsContextValue>(
     () => ({
@@ -101,6 +87,9 @@ export function AppGraphicsProvider({ children }: AppGraphicsProviderProps) {
       },
       resetGraphic: (assetKey) => {
         setGraphics((prev) => ({ ...prev, [assetKey]: defaultGraphicsAssets[assetKey] }))
+      },
+      resetAllGraphics: () => {
+        setGraphics(defaultGraphicsAssets)
       },
     }),
     [graphics],

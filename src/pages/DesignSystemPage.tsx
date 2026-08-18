@@ -1,7 +1,15 @@
-import { useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { House, WalletCards } from 'lucide-react'
 
 import { defaultGraphicsAssets, type GraphicsAssetKey, useAppGraphics } from '@/context/AppGraphicsContext'
+import {
+  clearStoredProjectRootDirectory,
+  loadStoredProjectRootDirectory,
+  pickProjectRootDirectory,
+  saveAllGraphicsToProject,
+  saveGraphicAssetToProject,
+  storeProjectRootDirectory,
+} from '@/lib/project-assets'
 import { SidebarProfileMenu } from '@/components/sidebar/SidebarProfileMenu'
 import { SiteNav } from '@/components/site-nav'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
@@ -192,14 +200,47 @@ function resolveColorValue(value: string) {
   return `var(${varName})`
 }
 
+function resolveGraphicsWriteErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    if (error.message.includes('Project folder not connected')) {
+      return 'Project folder not connected. Connect folder and retry Save to files.'
+    }
+
+    if (error.message.includes('project root, public folder, or public/graphics folder')) {
+      return 'Connected folder is invalid. Connect project root, public, or public/graphics and retry.'
+    }
+
+    if (error.message.includes('not a supported image format')) {
+      return 'Selected file is not a supported image.'
+    }
+
+    if (error.message.includes('is not supported for project save')) {
+      return 'Selected image type is not supported for project save.'
+    }
+
+    if (error.name === 'NotAllowedError') {
+      return 'No write permission for selected folder. Reconnect folder and allow write access.'
+    }
+
+    if (error.name === 'NotFoundError') {
+      return 'Could not find public/graphics in the selected location. Reconnect correct project folder.'
+    }
+  }
+
+  return 'Preview updated, but saving to project files failed. Click Save to files to retry.'
+}
+
 export function DesignSystemPage() {
   const [buttonClicks, setButtonClicks] = useState(0)
   const [sampleInput, setSampleInput] = useState('John Doe')
   const [isWalletEnabled, setIsWalletEnabled] = useState(true)
   const [selectedPlaygroundTab, setSelectedPlaygroundTab] = useState('filled')
   const [activeSidebarItem, setActiveSidebarItem] = useState<'merchants' | 'providers'>('merchants')
-  const { graphics, updateGraphic, resetGraphic } = useAppGraphics()
+  const { graphics, updateGraphic, resetGraphic, resetAllGraphics } = useAppGraphics()
   const [pendingGraphics, setPendingGraphics] = useState<Partial<Record<GraphicsAssetKey, string>>>({})
+  const [projectRootHandle, setProjectRootHandle] = useState<FileSystemDirectoryHandle | null>(null)
+  const [isWritingFiles, setIsWritingFiles] = useState(false)
+  const [graphicsWriteError, setGraphicsWriteError] = useState<string | null>(null)
   const fileInputRefs = useRef<Record<GraphicsAssetKey, HTMLInputElement | null>>({
     platformSidebarLogo: null,
     profileImage: null,
@@ -214,23 +255,171 @@ export function DesignSystemPage() {
     bankPayIcon: null,
   })
 
-  const handleGraphicUpload = (assetKey: GraphicsAssetKey, event: ChangeEvent<HTMLInputElement>) => {
+  const removePendingGraphic = (assetKey: GraphicsAssetKey) => {
+    setPendingGraphics((prev) => {
+      const next = { ...prev }
+      delete next[assetKey]
+      return next
+    })
+  }
+
+  const connectProjectFolder = async () => {
+    const selectedDirectory = await pickProjectRootDirectory()
+    setProjectRootHandle(selectedDirectory)
+    await storeProjectRootDirectory(selectedDirectory)
+    setGraphicsWriteError(null)
+    return selectedDirectory
+  }
+
+  const handleGraphicUpload = async (assetKey: GraphicsAssetKey, event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (!file || !file.type.startsWith('image/')) {
+    const isLikelyImageFile = !!file && (
+      file.type.startsWith('image/')
+      || /\.(png|jpe?g|svg|webp|gif|avif|bmp|ico)$/i.test(file.name)
+    )
+
+    if (!file || !isLikelyImageFile) {
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = () => {
-      const result = reader.result
-      if (typeof result === 'string') {
-        setPendingGraphics((prev) => ({ ...prev, [assetKey]: result }))
-      }
+    try {
+      const result = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onerror = () => reject(new Error('Unable to read the selected image.'))
+        reader.onload = () => {
+          if (typeof reader.result === 'string') {
+            resolve(reader.result)
+            return
+          }
+
+          reject(new Error('Unable to read the selected image.'))
+        }
+        reader.readAsDataURL(file)
+      })
+
+      // Upload only updates preview and marks file as pending.
+      // Persisting to public/graphics is an explicit Save to files action.
+      updateGraphic(assetKey, result)
+      setPendingGraphics((prev) => ({ ...prev, [assetKey]: result }))
+      setGraphicsWriteError(null)
+    } catch (error) {
+      setGraphicsWriteError(resolveGraphicsWriteErrorMessage(error))
+    } finally {
+      setIsWritingFiles(false)
     }
-    reader.readAsDataURL(file)
 
     // Reset input value so re-uploading the same file still triggers change.
     event.target.value = ''
+  }
+
+  useEffect(() => {
+    let isMounted = true
+
+    loadStoredProjectRootDirectory()
+      .then((storedHandle) => {
+        if (isMounted && storedHandle) {
+          setProjectRootHandle(storedHandle)
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setProjectRootHandle(null)
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const handleConnectProjectFolder = async () => {
+    try {
+      await connectProjectFolder()
+    } catch {
+      // User dismissed the folder picker or the browser does not support it.
+    }
+  }
+
+  const handleWriteGraphic = async (assetKey: GraphicsAssetKey, imageDataUrl: string) => {
+    let projectRoot = projectRootHandle
+    if (!projectRoot) {
+      projectRoot = await connectProjectFolder()
+    }
+
+    await saveGraphicAssetToProject(projectRoot, assetKey, imageDataUrl)
+    updateGraphic(assetKey, imageDataUrl)
+    removePendingGraphic(assetKey)
+    setGraphicsWriteError(null)
+  }
+
+  const handleSaveAllPending = async () => {
+    const pendingEntries = Object.entries(pendingGraphics) as Array<[GraphicsAssetKey, string]>
+    if (pendingEntries.length === 0) {
+      return
+    }
+
+    setIsWritingFiles(true)
+    try {
+      let projectRoot = projectRootHandle
+      if (!projectRoot) {
+        projectRoot = await connectProjectFolder()
+      }
+
+      await saveAllGraphicsToProject(projectRoot, pendingGraphics)
+
+      for (const [assetKey, imageDataUrl] of pendingEntries) {
+        updateGraphic(assetKey, imageDataUrl)
+      }
+
+      setPendingGraphics({})
+      setGraphicsWriteError(null)
+    } catch (error) {
+      setGraphicsWriteError(resolveGraphicsWriteErrorMessage(error))
+    } finally {
+      setIsWritingFiles(false)
+    }
+  }
+
+  const handleResetGraphic = async (assetKey: GraphicsAssetKey) => {
+    setPendingGraphics((prev) => {
+      const next = { ...prev }
+      delete next[assetKey]
+      return next
+    })
+
+    const defaultGraphic = defaultGraphicsAssets[assetKey]
+
+    if (projectRootHandle) {
+      setIsWritingFiles(true)
+      try {
+        await saveGraphicAssetToProject(projectRootHandle, assetKey, defaultGraphic)
+      } finally {
+        setIsWritingFiles(false)
+      }
+    }
+
+    resetGraphic(assetKey)
+  }
+
+  const handleResetAllGraphics = async () => {
+    setPendingGraphics({})
+
+    if (projectRootHandle) {
+      setIsWritingFiles(true)
+      try {
+        await saveAllGraphicsToProject(projectRootHandle, defaultGraphicsAssets)
+      } finally {
+        setIsWritingFiles(false)
+      }
+    }
+
+    resetAllGraphics()
+  }
+
+  const handleClearConnectedProjectFolder = async () => {
+    setProjectRootHandle(null)
+    setGraphicsWriteError(null)
+    await clearStoredProjectRootDirectory()
   }
 
   return (
@@ -302,12 +491,36 @@ export function DesignSystemPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Graphics</CardTitle>
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle>Graphics</CardTitle>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-[#6b7280]">
+                      {projectRootHandle ? `Project folder connected: ${projectRootHandle.name}` : 'Project folder not connected'}
+                    </span>
+                    <Button type="button" variant="outline" className="h-8 px-3 text-xs" onClick={handleConnectProjectFolder}>
+                      {projectRootHandle ? 'Reconnect project folder' : 'Connect project folder'}
+                    </Button>
+                    {projectRootHandle ? (
+                      <Button type="button" variant="ghost" className="h-8 px-3 text-xs" onClick={handleClearConnectedProjectFolder} disabled={isWritingFiles}>
+                        Forget folder
+                      </Button>
+                    ) : null}
+                    <Button type="button" variant="outline" className="h-8 px-3 text-xs" onClick={handleSaveAllPending} disabled={isWritingFiles || Object.keys(pendingGraphics).length === 0}>
+                      Save pending
+                    </Button>
+                    <Button type="button" variant="outline" className="h-8 px-3 text-xs" onClick={handleResetAllGraphics} disabled={isWritingFiles}>
+                      Restore defaults
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-[#475569]">
-                  Upload and manage shared application graphics in one place.
+                  Upload updates preview immediately. Use
+                  <span className="font-semibold"> Save to files</span> to write changes into
+                  <span className="font-semibold"> public/graphics</span> in the project.
                 </p>
+                {graphicsWriteError ? <p className="text-sm text-[#b91c1c]">{graphicsWriteError}</p> : null}
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {graphicsItems.map((item) => (
                     <div key={item.key} className="rounded-lg border bg-white p-4">
@@ -327,7 +540,9 @@ export function DesignSystemPage() {
                         type="file"
                         accept="image/*"
                         className="hidden"
-                        onChange={(event) => handleGraphicUpload(item.key, event)}
+                        onChange={(event) => {
+                          void handleGraphicUpload(item.key, event)
+                        }}
                       />
 
                       <div className="mt-3 flex gap-2">
@@ -335,40 +550,40 @@ export function DesignSystemPage() {
                           type="button"
                           variant="outline"
                           className="h-8 px-3 text-xs"
-                          onClick={() => fileInputRefs.current[item.key]?.click()}
+                          onClick={async () => {
+                            fileInputRefs.current[item.key]?.click()
+                          }}
                         >
                           Upload
                         </Button>
                         <Button
                           type="button"
                           className="h-8 px-3 text-xs"
-                          onClick={() => {
+                          onClick={async () => {
                             const pendingGraphic = pendingGraphics[item.key]
                             if (!pendingGraphic) {
                               return
                             }
-                            updateGraphic(item.key, pendingGraphic)
-                            setPendingGraphics((prev) => {
-                              const next = { ...prev }
-                              delete next[item.key]
-                              return next
-                            })
+
+                            setIsWritingFiles(true)
+                            try {
+                              await handleWriteGraphic(item.key, pendingGraphic)
+                            } catch (error) {
+                              setGraphicsWriteError(resolveGraphicsWriteErrorMessage(error))
+                            } finally {
+                              setIsWritingFiles(false)
+                            }
                           }}
-                          disabled={!pendingGraphics[item.key]}
+                          disabled={!pendingGraphics[item.key] || isWritingFiles}
                         >
-                          Save
+                          Save to files
                         </Button>
                         <Button
                           type="button"
                           variant="ghost"
                           className="h-8 px-3 text-xs"
-                          onClick={() => {
-                            setPendingGraphics((prev) => {
-                              const next = { ...prev }
-                              delete next[item.key]
-                              return next
-                            })
-                            resetGraphic(item.key)
+                          onClick={async () => {
+                            await handleResetGraphic(item.key)
                           }}
                           disabled={graphics[item.key] === defaultGraphicsAssets[item.key] && !pendingGraphics[item.key]}
                         >
