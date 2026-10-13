@@ -98,6 +98,20 @@
     --widget-resize-handle-border: var(--widget-color-border);
     --widget-resize-handle-bg: var(--widget-color-surface);
 
+    /* Outline button inner background stays white regardless of widget surface color. */
+    --widget-button-outline-bg: #ffffff;
+
+    /* Brand-mandated button colors for third-party wallets. */
+    --widget-brand-apple-pay-bg: #ffffff;
+    --widget-brand-apple-pay-text: #000000;
+    --widget-brand-apple-pay-border: #000000;
+    --widget-brand-paypal-bg: #ffffff;
+    --widget-brand-paypal-text: #003087;
+    --widget-brand-paypal-border: #dcdcdc;
+    --widget-brand-google-pay-bg: #ffffff;
+    --widget-brand-google-pay-text: #3c4043;
+    --widget-brand-google-pay-border: #747775;
+
     --widget-status-warning-bg: #fffbeb;
     --widget-status-warning-border: #fcd34d;
     --widget-status-warning-text: #92400e;
@@ -139,6 +153,18 @@
     --widget-resize-handle-height: 40px;
     --widget-resize-handle-border: var(--widget-color-border);
     --widget-resize-handle-bg: var(--widget-color-surface);
+
+    --widget-button-outline-bg: #ffffff;
+
+    --widget-brand-apple-pay-bg: #ffffff;
+    --widget-brand-apple-pay-text: #000000;
+    --widget-brand-apple-pay-border: #000000;
+    --widget-brand-paypal-bg: #ffffff;
+    --widget-brand-paypal-text: #003087;
+    --widget-brand-paypal-border: #dcdcdc;
+    --widget-brand-google-pay-bg: #ffffff;
+    --widget-brand-google-pay-text: #3c4043;
+    --widget-brand-google-pay-border: #747775;
   }
 
   * {

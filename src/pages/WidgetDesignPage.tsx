@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, CircleCheck, CircleX, X } from 'lucide-react'
+import {
+  ChevronDown,
+  CircleCheck,
+  CircleX,
+  Droplet,
+  MousePointerClick,
+  Palette,
+  Rows3,
+  Scan,
+  TextCursorInput,
+  Type as TypeIcon,
+  X,
+} from 'lucide-react'
 
 import { MerchantTopHeader } from '@/components/layout/MerchantTopHeader'
 import { Sidebar } from '@/components/sidebar/Sidebar'
@@ -15,12 +27,9 @@ import { Switch } from '@/components/ui/switch'
 
 const mainTabs = ['Dashboard', 'Transactions', 'Settings', 'PSP Settings', 'User Management', 'Notifications', 'Widget Customization']
 const widgetDesignSections = [
+  { id: 'widget-your-brand', label: 'Your Brand' },
+  { id: 'widget-advanced', label: 'Advanced' },
   { id: 'widget-elements-visibility', label: 'Elements visibility' },
-  { id: 'widget-button-style', label: 'Button style' },
-  { id: 'widget-theme', label: 'Appearance' },
-  { id: 'widget-typography', label: 'Typography' },
-  { id: 'widget-input-style', label: 'Input style' },
-  { id: 'widget-density', label: 'Density' },
 ]
 
 const defaultCardBrand = 'visa' as const
@@ -40,6 +49,8 @@ const cardBrandLabelByType = {
 const supportedCardBrands = ['visa', 'mastercard', 'amex'] as const
 const otherMethodIconKeys = ['applePayIcon', 'payPalIcon', 'googlePayIcon'] as const
 const paymentOptionRowHeight = 53
+// Temporarily hide per-field descriptions under section headings.
+const showFieldDescriptions = false
 const defaultWidgetSectionId = widgetDesignSections[0].id
 const primaryPaymentVisibilityKeys = ['setUpWallet', 'payByNewCard', 'payByOtherMethods', 'payByBank'] as const
 const defaultElementVisibility = {
@@ -54,6 +65,7 @@ const defaultWidgetTheme = {
   primary: '#3465eb',
   surface: '#ffffff',
   border: '#d8e1ee',
+  buttonOutlineBorder: '#d8e1ee',
   inputFilledSurface: '#eef3fa',
   textPrimary: '#111827',
   textMuted: '#64748b',
@@ -211,6 +223,146 @@ const widgetDensityPresetOptions = [
 ]
 
 const defaultWidgetDensityPreset: WidgetDensityPreset = 'comfortable'
+
+interface WidgetFontDropdownProps {
+  value: (typeof widgetTypographyOptions)[number]['id']
+  onChange: (id: (typeof widgetTypographyOptions)[number]['id']) => void
+}
+
+function WidgetFontDropdown({ value, onChange }: WidgetFontDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState<'all' | WidgetTypographyCategory>('all')
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
+
+  const selectedOption = widgetTypographyOptions.find((o) => o.id === value) ?? widgetTypographyOptions[0]
+
+  const filteredOptions = widgetTypographyOptions.filter((option) => {
+    if (categoryFilter !== 'all' && option.category !== categoryFilter) {
+      return false
+    }
+    const query = searchQuery.trim().toLowerCase()
+    return !query || option.label.toLowerCase().includes(query)
+  })
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !dropdownRef.current?.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false)
+      }
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen])
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-white px-3 py-1 text-sm text-[var(--sidebar-text-primary)] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sidebar-focus-ring)]"
+        onClick={() => {
+          setIsOpen((prev) => {
+            if (prev) {
+              setSearchQuery('')
+            }
+            return !prev
+          })
+        }}
+        aria-label="Select widget font family"
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
+      >
+        <span style={{ fontFamily: selectedOption.fontFamily }}>{selectedOption.label}</span>
+        <ChevronDown
+          className={`h-4 w-4 text-[var(--sidebar-text-secondary)] transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          aria-hidden="true"
+        />
+      </button>
+
+      {isOpen ? (
+        <div
+          className="absolute z-30 mt-1 w-full rounded-md border border-[var(--sidebar-border-color)] bg-[var(--sidebar-menu-bg)] shadow-md"
+          role="listbox"
+          aria-label="Widget font options"
+        >
+          <div className="border-b border-[var(--sidebar-border-color)] p-2">
+            <div className="mb-2 flex flex-wrap gap-2">
+              {([{ id: 'all', label: 'All fonts' }, { id: 'sans-serif', label: 'Sans Serif' }, { id: 'serif', label: 'Serif' }] as const).map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  className={`rounded-full border px-2 py-1 text-xs font-semibold transition-colors ${
+                    categoryFilter === cat.id
+                      ? 'border-[var(--sidebar-focus-ring)] bg-[var(--sidebar-item-active-bg)] text-[var(--sidebar-text-primary)]'
+                      : 'border-[var(--sidebar-border-color)] bg-[var(--sidebar-menu-bg)] text-[var(--sidebar-text-secondary)] hover:bg-[var(--sidebar-item-hover-bg)]'
+                  }`}
+                  onClick={() => setCategoryFilter(cat.id)}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search font by name"
+              aria-label="Search font by name"
+              className="h-8"
+            />
+          </div>
+
+          <div className="max-h-56 overflow-y-auto py-1">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((option) => {
+                const isSelected = value === option.id
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sidebar-focus-ring)] ${
+                      isSelected
+                        ? 'bg-[var(--sidebar-item-active-bg)] text-[var(--sidebar-text-primary)]'
+                        : 'text-[var(--sidebar-text-primary)] hover:bg-[var(--sidebar-item-hover-bg)]'
+                    }`}
+                    style={{ fontFamily: option.fontFamily }}
+                    onClick={() => {
+                      onChange(option.id)
+                      setSearchQuery('')
+                      setIsOpen(false)
+                    }}
+                    role="option"
+                    aria-selected={isSelected}
+                  >
+                    <span>{option.label}</span>
+                    {isSelected ? <CircleCheck className="h-4 w-4 shrink-0 text-[var(--sidebar-focus-ring)]" aria-hidden="true" /> : null}
+                  </button>
+                )
+              })
+            ) : (
+              <p className="px-3 py-2 text-sm text-[var(--sidebar-text-secondary)]">No fonts found.</p>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 const WCAG_AA_TEXT_CONTRAST = 4.5
 
@@ -535,12 +687,12 @@ function PaymentOptionRow({
     `w-full ${useFilledTextColors ? 'text-[var(--widget-option-filled-text)] [&_.widget-option-muted]:text-[var(--widget-option-filled-muted-text)]' : 'text-[var(--widget-text-primary)]'} transition-colors`,
     withBorder
       ? active
-        ? `border border-[var(--widget-color-primary)] ${isFilledButton ? 'bg-[var(--widget-option-button-bg)]' : isTonalButton ? 'bg-[var(--widget-option-button-tonal-bg)]' : 'bg-[var(--widget-color-surface)]'}`
+        ? `border border-[var(--widget-color-primary)] ${isFilledButton ? 'bg-[var(--widget-option-button-bg)]' : isTonalButton ? 'bg-[var(--widget-option-button-tonal-bg)]' : 'bg-[var(--widget-button-outline-bg)]'}`
         : isFilledButton
           ? `border border-transparent bg-[var(--widget-option-button-bg)] ${hoverable ? 'hover:bg-[var(--widget-option-button-bg-hover)]' : ''}`
           : isTonalButton
             ? `border border-transparent bg-[var(--widget-option-button-tonal-bg)] ${hoverable ? 'hover:bg-[var(--widget-option-button-tonal-bg-hover)]' : ''}`
-          : `border border-[var(--widget-color-border)] bg-[var(--widget-color-surface)] ${hoverable ? 'hover:border-[var(--widget-color-primary)] hover:bg-[var(--widget-option-hover-bg)]' : ''}`
+          : `border border-[var(--widget-button-outline-border)] bg-[var(--widget-button-outline-bg)] ${hoverable ? 'hover:border-[var(--widget-color-primary)] hover:bg-[var(--widget-option-hover-bg)]' : ''}`
       : '',
     !withBorder && onClick && hoverable
       ? isFilledButton
@@ -606,14 +758,11 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
   const [widgetInputStyle, setWidgetInputStyle] = useState(defaultWidgetInputStyle)
   const [widgetSurfaceStyle, setWidgetSurfaceStyle] = useState(defaultWidgetSurfaceStyle)
   const [widgetDensityPreset, setWidgetDensityPreset] = useState<WidgetDensityPreset>(defaultWidgetDensityPreset)
-  const [isTypographyDropdownOpen, setIsTypographyDropdownOpen] = useState(false)
-  const [typographySearchQuery, setTypographySearchQuery] = useState('')
-  const [typographyCategoryFilter, setTypographyCategoryFilter] = useState<'all' | WidgetTypographyCategory>('all')
   const [isPayByNewCardOpen, setIsPayByNewCardOpen] = useState(false)
+  const [isPayByOtherMethodsOpen, setIsPayByOtherMethodsOpen] = useState(false)
   const [isSaveCardEnabled, setIsSaveCardEnabled] = useState(false)
   const [elementVisibility, setElementVisibility] = useState(defaultElementVisibility)
   const widgetSectionRefs = useRef<Record<string, HTMLElement | null>>({})
-  const typographyDropdownRef = useRef<HTMLDivElement | null>(null)
   const dragStartXRef = useRef(0)
   const dragStartWidthRef = useRef(360)
   const pointerMoveHandlerRef = useRef<((event: PointerEvent) => void) | null>(null)
@@ -634,6 +783,7 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
   const isCardInformationSingleRow = widgetWidth >= 420
   const isConfigurationCompact = widgetWidth >= 520
   const payByNewCardOpenRadius = Math.min(widgetButtonStyle.radius, 24)
+  const payByOtherMethodsOpenRadius = Math.min(widgetButtonStyle.radius, 24)
   const activeCardBrand = defaultCardBrand
   const isPreviewStickyEnabled = true
   const activeWidgetDensityPreset = widgetDensityPresetOptions.find((option) => option.id === widgetDensityPreset) ?? widgetDensityPresetOptions[1]
@@ -778,11 +928,12 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
     setWidgetSurfaceStyle({ radius: normalizedValue })
   }
 
-  const resetWidgetTypographySection = () => {
+  const resetYourBrandSection = () => {
+    handleWidgetThemeChange('primary', defaultWidgetTheme.primary)
+    setWidgetThemeDraft((prev) => ({ ...prev, primary: defaultWidgetTheme.primary }))
     setWidgetTypography(defaultWidgetTypographyId)
-    setTypographySearchQuery('')
-    setTypographyCategoryFilter('all')
-    setIsTypographyDropdownOpen(false)
+    setWidgetButtonStyle(defaultWidgetButtonStyle)
+    setWidgetDensityPreset(defaultWidgetDensityPreset)
   }
 
   const handleWidgetButtonTypeChange = (value: string) => {
@@ -796,10 +947,6 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
   const handleWidgetButtonRadiusChange = (value: number) => {
     const normalizedValue = Number.isFinite(value) ? Math.max(0, Math.min(64, Math.round(value))) : defaultWidgetButtonStyle.radius
     setWidgetButtonStyle((prev) => ({ ...prev, radius: normalizedValue }))
-  }
-
-  const resetWidgetButtonStyleSection = () => {
-    setWidgetButtonStyle(defaultWidgetButtonStyle)
   }
 
   const handleWidgetInputTypeChange = (value: string) => {
@@ -832,37 +979,6 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
     ensureGoogleFontStylesheet(selectedOption.id, selectedOption.googleFamily)
   }, [widgetTypography])
 
-  useEffect(() => {
-    if (!isTypographyDropdownOpen) {
-      return
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const eventTarget = event.target
-      if (!(eventTarget instanceof Node)) {
-        return
-      }
-
-      if (!typographyDropdownRef.current?.contains(eventTarget)) {
-        setIsTypographyDropdownOpen(false)
-      }
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsTypographyDropdownOpen(false)
-      }
-    }
-
-    window.addEventListener('pointerdown', handlePointerDown)
-    window.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown)
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isTypographyDropdownOpen])
-
   const primaryVisibleOptionsCount = primaryPaymentVisibilityKeys.filter((key) => elementVisibility[key]).length
 
   const togglePrimaryPaymentVisibility = (
@@ -889,6 +1005,12 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
       setIsPayByNewCardOpen(false)
     }
   }, [elementVisibility.payByNewCard, isPayByNewCardOpen])
+
+  useEffect(() => {
+    if (!elementVisibility.payByOtherMethods && isPayByOtherMethodsOpen) {
+      setIsPayByOtherMethodsOpen(false)
+    }
+  }, [elementVisibility.payByOtherMethods, isPayByOtherMethodsOpen])
 
   const registerWidgetSectionRef = (sectionId: string) => (node: HTMLElement | null) => {
     widgetSectionRefs.current[sectionId] = node
@@ -999,6 +1121,7 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
     '--widget-color-primary': widgetTheme.primary,
     '--widget-color-surface': effectiveWidgetSurfaceColor,
     '--widget-color-border': widgetTheme.border,
+    '--widget-button-outline-border': widgetTheme.buttonOutlineBorder,
     '--widget-text-primary': widgetTheme.textPrimary,
     '--widget-text-muted': widgetTheme.textMuted,
     '--widget-text-on-primary': widgetTheme.textOnPrimary,
@@ -1039,7 +1162,7 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
       label: 'Outline',
       description: 'Border + Text primary. Hover uses Primary.',
       sampleStyle: {
-        borderColor: widgetTheme.border,
+        borderColor: widgetTheme.buttonOutlineBorder,
         color: widgetTheme.textPrimary,
         backgroundColor: effectiveWidgetSurfaceColor,
         borderRadius: `${widgetButtonStyle.radius}px`,
@@ -1112,9 +1235,14 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
       description: 'Main background color of the widget card.',
     },
     {
-      label: 'Border color',
+      label: 'Surface border color',
       token: 'border' as const,
-      description: 'Used for outlines, dividers and option row borders.',
+      description: 'Used for the widget surface outline, dividers and separators.',
+    },
+    {
+      label: 'Button outline border',
+      token: 'buttonOutlineBorder' as const,
+      description: 'Border color used specifically for Outline-style buttons. Independent from the general Border color.',
     },
     {
       label: 'Text primary',
@@ -1163,25 +1291,12 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
       id: 'structural',
       title: 'Borders and Dividers',
       description: 'Fine-tune separation lines and visual boundaries.',
-      tokens: ['border'],
+      tokens: ['border', 'buttonOutlineBorder'],
       hasWarning: false,
     },
   ]
   const hasAppearanceAccessibilityWarning = colorManagementGroups.some((group) => group.id !== 'structural' && group.hasWarning)
 
-  const selectedWidgetTypographyOption = widgetTypographyOptions.find((option) => option.id === widgetTypography) ?? widgetTypographyOptions[0]
-  const filteredWidgetTypographyOptions = widgetTypographyOptions.filter((option) => {
-    if (typographyCategoryFilter !== 'all' && option.category !== typographyCategoryFilter) {
-      return false
-    }
-
-    const query = typographySearchQuery.trim().toLowerCase()
-    if (!query) {
-      return true
-    }
-
-    return option.label.toLowerCase().includes(query)
-  })
   return (
     <div className="min-h-screen bg-white text-[#1f2430]">
       {isMerchantUser ? <MerchantTopHeader /> : null}
@@ -1244,209 +1359,245 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
               </aside>
 
               <div className={`min-w-0 space-y-8 py-5 text-sm ${isConfigurationCompact ? 'max-w-none' : 'w-full'}`}>
-                <section id="widget-elements-visibility" ref={registerWidgetSectionRef('widget-elements-visibility')} className="space-y-3 scroll-mt-6 pb-6">
+                <section id="widget-your-brand" ref={registerWidgetSectionRef('widget-your-brand')} className="space-y-6 scroll-mt-6 pb-8">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-lg font-semibold text-[var(--sidebar-text-primary)]">Elements visibility</p>
-                    <div className="flex items-center gap-2">
-                      <Button type="button" variant="outline" className="h-8 px-3 text-sm" onClick={resetElementVisibilitySection}>
-                        Reset section
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="text-sm text-[var(--sidebar-text-secondary)]">
-                    Manage which payment options are visible in preview. At least one payment option must stay enabled.
-                  </p>
-
-                  <div className="divide-y divide-[var(--sidebar-border-color)]">
-                    <div className="flex items-start justify-between gap-3 py-3">
-                      <div className="min-w-0 space-y-1">
-                        <p className="font-semibold text-[var(--sidebar-text-primary)]">Set up wallet</p>
-                        <p className="text-sm text-[var(--sidebar-text-secondary)]">Controls visibility of the wallet quick-start payment option.</p>
-                      </div>
-                      <Switch
-                        checked={elementVisibility.setUpWallet}
-                        onCheckedChange={(checked) => togglePrimaryPaymentVisibility('setUpWallet', checked)}
-                        aria-label="Toggle Set up wallet visibility"
-                        disabled={elementVisibility.setUpWallet && primaryVisibleOptionsCount <= 1}
-                      />
-                    </div>
-
-                    <div className="space-y-3 py-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 space-y-1">
-                          <p className="font-semibold text-[var(--sidebar-text-primary)]">Pay by new card</p>
-                          <p className="text-sm text-[var(--sidebar-text-secondary)]">Controls visibility of the option to open card form and enter new payment details.</p>
-                        </div>
-                        <Switch
-                          checked={elementVisibility.payByNewCard}
-                          onCheckedChange={(checked) => togglePrimaryPaymentVisibility('payByNewCard', checked)}
-                          aria-label="Toggle Pay by new card visibility"
-                          disabled={elementVisibility.payByNewCard && primaryVisibleOptionsCount <= 1}
-                        />
-                      </div>
-
-                      <div className="ml-4 flex items-start justify-between gap-3 py-1">
-                        <div className="min-w-0 space-y-1">
-                          <p className="font-medium text-[var(--sidebar-text-primary)]">Saved cards visibility</p>
-                          <p className="text-sm text-[var(--sidebar-text-secondary)]">Controls visibility of the saved card row above the new card form.</p>
-                        </div>
-                        <Switch
-                          checked={elementVisibility.savedCards && elementVisibility.payByNewCard}
-                          onCheckedChange={(checked) => setElementVisibility((prev) => ({ ...prev, savedCards: checked }))}
-                          aria-label="Toggle saved cards visibility"
-                          disabled={!elementVisibility.payByNewCard}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-start justify-between gap-3 py-3">
-                      <div className="min-w-0 space-y-1">
-                        <p className="font-semibold text-[var(--sidebar-text-primary)]">Pay by other methods</p>
-                        <p className="text-sm text-[var(--sidebar-text-secondary)]">Controls visibility of alternative methods such as Apple Pay, PayPal, and Google Pay.</p>
-                      </div>
-                      <Switch
-                        checked={elementVisibility.payByOtherMethods}
-                        onCheckedChange={(checked) => togglePrimaryPaymentVisibility('payByOtherMethods', checked)}
-                        aria-label="Toggle Pay by other methods visibility"
-                        disabled={elementVisibility.payByOtherMethods && primaryVisibleOptionsCount <= 1}
-                      />
-                    </div>
-
-                    <div className="flex items-start justify-between gap-3 py-3">
-                      <div className="min-w-0 space-y-1">
-                        <p className="font-semibold text-[var(--sidebar-text-primary)]">Pay by bank</p>
-                        <p className="text-sm text-[var(--sidebar-text-secondary)]">Controls visibility of the dedicated bank payment option.</p>
-                      </div>
-                      <Switch
-                        checked={elementVisibility.payByBank}
-                        onCheckedChange={(checked) => togglePrimaryPaymentVisibility('payByBank', checked)}
-                        aria-label="Toggle Pay by bank visibility"
-                        disabled={elementVisibility.payByBank && primaryVisibleOptionsCount <= 1}
-                      />
-                    </div>
-                  </div>
-
-                  {primaryVisibleOptionsCount === 1 ? (
-                    <div
-                      className="rounded-lg border px-4 py-3 text-sm"
-                      style={{
-                        borderColor: 'var(--widget-status-warning-border)',
-                        backgroundColor: 'var(--widget-status-warning-bg)',
-                        color: 'var(--widget-status-warning-text)',
-                      }}
-                    >
-                      At least one payment option must be enabled.
-                    </div>
-                  ) : null}
-                </section>
-
-                <section id="widget-button-style" ref={registerWidgetSectionRef('widget-button-style')} className="space-y-4 border-t-2 border-[var(--sidebar-border-color-strong)] pt-8 pb-8">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-lg font-semibold text-[var(--sidebar-text-primary)]">Button style</p>
+                    <p className="text-lg font-semibold text-[var(--sidebar-text-primary)]">Your Brand</p>
                     <div className="flex items-center gap-2">
                       <Button
                         type="button"
                         variant="outline"
                         className="h-8 px-3 text-sm"
-                        onClick={resetWidgetButtonStyleSection}
-                        disabled={widgetButtonStyle.type === defaultWidgetButtonStyle.type && widgetButtonStyle.radius === defaultWidgetButtonStyle.radius}
+                        onClick={resetYourBrandSection}
+                        disabled={
+                          (normalizeHexColor(widgetTheme.primary) ?? widgetTheme.primary.trim().toLowerCase())
+                          === (normalizeHexColor(defaultWidgetTheme.primary) ?? defaultWidgetTheme.primary.trim().toLowerCase())
+                          && widgetTypography === defaultWidgetTypographyId
+                          && widgetButtonStyle.type === defaultWidgetButtonStyle.type
+                          && widgetButtonStyle.radius === defaultWidgetButtonStyle.radius
+                          && widgetDensityPreset === defaultWidgetDensityPreset
+                        }
                       >
                         Reset section
                       </Button>
                     </div>
                   </div>
 
-                  <p className="text-sm text-[var(--sidebar-text-secondary)]">
-                    Manage button structure for the whole widget. Action buttons keep their current visual hierarchy.
-                  </p>
+                  <p className="text-sm text-[var(--sidebar-text-secondary)]">Quickly define the widget brand identity: color and font, button style, and spacing density.</p>
 
-                  <div className="divide-y divide-[var(--sidebar-border-color)]">
-                    <div className="grid gap-3 py-3 grid-cols-1">
-                      <fieldset className="grid gap-3 min-w-0 w-full">
-                        <legend className="sr-only">Button type</legend>
-                        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                          {buttonStyleSectionOptions.map((option) => {
-                            const isSelected = widgetButtonStyle.type === option.type
+                  <div className="space-y-8">
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--sidebar-text-secondary)]">Identity</p>
+                      <div className="divide-y divide-[var(--sidebar-border-color)]">
+                        <div className={`grid gap-3 py-4 ${isConfigurationCompact ? 'grid-cols-1' : 'md:grid-cols-[minmax(0,1fr)_220px] md:items-start'}`}>
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Palette className="h-4 w-4 text-[var(--sidebar-text-secondary)]" strokeWidth={2} aria-hidden="true" />
+                              <p className="font-medium text-[var(--sidebar-text-primary)]">Brand / Primary color</p>
+                            </div>
+                            {showFieldDescriptions ? (
+                              <p className="text-sm text-[var(--sidebar-text-secondary)]">Used for primary actions, active highlights, and key brand accents in preview.</p>
+                            ) : null}
+                          </div>
 
-                            return (
-                              <label key={option.type} className="block cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name="widget-button-type"
-                                  value={option.type}
-                                  checked={isSelected}
-                                  onChange={(event) => handleWidgetButtonTypeChange(event.target.value)}
-                                  className="peer sr-only"
-                                />
-                                <span className={`flex min-w-[220px] flex-col gap-3 rounded-xl border p-3 transition-colors hover:border-[var(--sidebar-border-color-strong)] ${
-                                  isSelected
-                                    ? 'border-[var(--sidebar-border-color-strong)] bg-[var(--sidebar-bg)]'
-                                    : 'border-[var(--sidebar-border-color)] bg-[var(--sidebar-menu-bg)]'
-                                }`}>
-                                  <span className="space-y-1">
-                                    <span className="flex items-center gap-2 text-sm font-semibold text-[var(--sidebar-text-primary)]">
-                                      <span className={`flex h-4 w-4 items-center justify-center rounded-full border bg-white ${
-                                        isSelected
-                                          ? 'border-[var(--sidebar-text-primary)]'
-                                          : 'border-[var(--sidebar-border-color-strong)]'
-                                      }`}>
-                                        <span className={`h-2 w-2 rounded-full bg-[var(--sidebar-text-primary)] transition-opacity ${
-                                          isSelected ? 'opacity-100' : 'opacity-0'
-                                        }`} />
-                                      </span>
-                                      <span>{option.label}</span>
-                                    </span>
-                                    <span className="block min-h-10 text-sm leading-5 text-[var(--sidebar-text-secondary)]">
-                                      {option.description}
-                                    </span>
-                                  </span>
-                                  <span
-                                    className="inline-flex h-10 items-center justify-center rounded-full border px-4 text-sm font-semibold"
-                                    style={option.sampleStyle}
-                                  >
-                                    Sample text
-                                  </span>
-                                </span>
-                              </label>
-                            )
-                          })}
+                          <div className="relative">
+                            <input
+                              id="widget-color-picker-your-brand-primary"
+                              type="color"
+                              value={normalizeHexColor(widgetTheme.primary) ?? defaultWidgetTheme.primary}
+                              onChange={(event) => handleWidgetThemeChange('primary', event.target.value)}
+                              className="absolute h-0 w-0 opacity-0"
+                              aria-label="Widget primary color picker"
+                              tabIndex={-1}
+                            />
+                            <label
+                              htmlFor="widget-color-picker-your-brand-primary"
+                              className="absolute left-2 top-1/2 z-10 block h-5 w-5 -translate-y-1/2 rounded border border-[var(--sidebar-border-color-strong)]"
+                              style={{ backgroundColor: widgetTheme.primary }}
+                              title="Open primary color picker"
+                            />
+                            <Input
+                              value={widgetThemeDraft.primary}
+                              onChange={(event) => handleWidgetThemeHexInputChange('primary', event.target.value)}
+                              onBlur={() => handleWidgetThemeHexInputBlur('primary')}
+                              placeholder="#000000"
+                              spellCheck={false}
+                              aria-label="Widget primary color hex value"
+                              className="h-9 pl-10"
+                            />
+                          </div>
                         </div>
-                      </fieldset>
+
+                        <div className="grid gap-3 py-4 grid-cols-1">
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <TypeIcon className="h-4 w-4 text-[var(--sidebar-text-secondary)]" strokeWidth={2} aria-hidden="true" />
+                              <p className="font-medium text-[var(--sidebar-text-primary)]">Font</p>
+                            </div>
+                            {showFieldDescriptions ? (
+                              <p className="text-sm text-[var(--sidebar-text-secondary)]">Main font applied to the whole widget.</p>
+                            ) : null}
+                          </div>
+
+                          <div className="w-full">
+                            <WidgetFontDropdown value={widgetTypography} onChange={setWidgetTypography} />
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className={`grid gap-3 py-3 ${isConfigurationCompact ? 'grid-cols-1' : 'md:grid-cols-[minmax(0,1fr)_220px] md:items-start'}`}>
-                      <div className="min-w-0 space-y-1">
-                        <p className="font-medium text-[var(--sidebar-text-primary)]">Border radius</p>
-                        <p className="text-sm text-[var(--sidebar-text-secondary)]">Set corner roundness for widget buttons (0 to 64px).</p>
-                      </div>
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--sidebar-text-secondary)]">Buttons</p>
+                      <div className="divide-y divide-[var(--sidebar-border-color)]">
+                        <div className="grid gap-3 py-4 grid-cols-1">
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <MousePointerClick className="h-4 w-4 text-[var(--sidebar-text-secondary)]" strokeWidth={2} aria-hidden="true" />
+                              <p className="font-medium text-[var(--sidebar-text-primary)]">Button style</p>
+                            </div>
+                            {showFieldDescriptions ? (
+                              <p className="text-sm text-[var(--sidebar-text-secondary)]">Manage button structure for the whole widget. Action buttons keep their current visual hierarchy.</p>
+                            ) : null}
+                          </div>
 
-                      <div className="space-y-3">
-                        <Input
-                          type="number"
-                          min={0}
-                          max={64}
-                          step={1}
-                          value={widgetButtonStyle.radius}
-                          onChange={(event) => handleWidgetButtonRadiusChange(Number(event.target.value))}
-                          aria-label="Widget button radius in pixels"
-                          className="h-9"
-                        />
-                        <input
-                          type="range"
-                          min={0}
-                          max={64}
-                          step={1}
-                          value={widgetButtonStyle.radius}
-                          onChange={(event) => handleWidgetButtonRadiusChange(Number(event.target.value))}
-                          aria-label="Widget button radius slider"
-                          className="h-2 w-full cursor-pointer accent-[var(--widget-color-primary)]"
-                        />
+                          <fieldset className="grid gap-3 min-w-0 w-full">
+                            <legend className="sr-only">Button type</legend>
+                            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                              {buttonStyleSectionOptions.map((option) => {
+                                const isSelected = widgetButtonStyle.type === option.type
+
+                                return (
+                                  <label key={option.type} className="block cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      name="widget-button-type"
+                                      value={option.type}
+                                      checked={isSelected}
+                                      onChange={(event) => handleWidgetButtonTypeChange(event.target.value)}
+                                      className="peer sr-only"
+                                    />
+                                    <span className={`flex min-w-[220px] flex-col gap-3 rounded-xl border p-3 transition-colors hover:border-[var(--sidebar-border-color-strong)] ${
+                                      isSelected
+                                        ? 'border-[var(--sidebar-border-color-strong)] bg-[var(--sidebar-bg)]'
+                                        : 'border-[var(--sidebar-border-color)] bg-[var(--sidebar-menu-bg)]'
+                                    }`}>
+                                      <span className="space-y-1">
+                                        <span className="flex items-center gap-2 text-sm font-semibold text-[var(--sidebar-text-primary)]">
+                                          <span className={`flex h-4 w-4 items-center justify-center rounded-full border bg-white ${
+                                            isSelected
+                                              ? 'border-[var(--sidebar-text-primary)]'
+                                              : 'border-[var(--sidebar-border-color-strong)]'
+                                          }`}>
+                                            <span className={`h-2 w-2 rounded-full bg-[var(--sidebar-text-primary)] transition-opacity ${
+                                              isSelected ? 'opacity-100' : 'opacity-0'
+                                            }`} />
+                                          </span>
+                                          <span>{option.label}</span>
+                                        </span>
+                                        <span className="block min-h-10 text-sm leading-5 text-[var(--sidebar-text-secondary)]">
+                                          {option.description}
+                                        </span>
+                                      </span>
+                                      <span
+                                        className="inline-flex h-10 items-center justify-center rounded-full border px-4 text-sm font-semibold"
+                                        style={option.sampleStyle}
+                                      >
+                                        Sample text
+                                      </span>
+                                    </span>
+                                  </label>
+                                )
+                              })}
+                            </div>
+                          </fieldset>
+                        </div>
+
+                        <div className={`grid gap-3 py-4 ${isConfigurationCompact ? 'grid-cols-1' : 'md:grid-cols-[minmax(0,1fr)_220px] md:items-start'}`}>
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Scan className="h-4 w-4 text-[var(--sidebar-text-secondary)]" strokeWidth={2} aria-hidden="true" />
+                              <p className="font-medium text-[var(--sidebar-text-primary)]">Button border radius</p>
+                            </div>
+                            {showFieldDescriptions ? (
+                              <p className="text-sm text-[var(--sidebar-text-secondary)]">Set corner roundness for widget buttons (0 to 64px).</p>
+                            ) : null}
+                          </div>
+
+                          <div className="space-y-3">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={64}
+                              step={1}
+                              value={widgetButtonStyle.radius}
+                              onChange={(event) => handleWidgetButtonRadiusChange(Number(event.target.value))}
+                              aria-label="Widget button radius in pixels"
+                              className="h-9"
+                            />
+                            <input
+                              type="range"
+                              min={0}
+                              max={64}
+                              step={1}
+                              value={widgetButtonStyle.radius}
+                              onChange={(event) => handleWidgetButtonRadiusChange(Number(event.target.value))}
+                              aria-label="Widget button radius slider"
+                              className="h-2 w-full cursor-pointer accent-[var(--widget-color-primary)]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--sidebar-text-secondary)]">Layout</p>
+                      <div className="divide-y divide-[var(--sidebar-border-color)]">
+                        <div className="grid gap-3 py-4 grid-cols-1">
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Rows3 className="h-4 w-4 text-[var(--sidebar-text-secondary)]" strokeWidth={2} aria-hidden="true" />
+                              <p className="font-medium text-[var(--sidebar-text-primary)]">Density</p>
+                            </div>
+                            {showFieldDescriptions ? (
+                              <p className="text-sm text-[var(--sidebar-text-secondary)]">Presets for widget spacing: Compact, Comfortable, Spacius.</p>
+                            ) : null}
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {widgetDensityPresetOptions.map((option) => {
+                                const isActive = widgetDensityPreset === option.id
+
+                                return (
+                                  <Button
+                                    key={option.id}
+                                    type="button"
+                                    variant="outline"
+                                    aria-pressed={isActive}
+                                    className={`h-9 px-4 text-sm ${isActive ? 'border-[var(--widget-color-primary)] bg-[var(--sidebar-menu-bg)] text-[var(--sidebar-text-primary)]' : ''}`}
+                                    onClick={() => setWidgetDensityPreset(option.id)}
+                                  >
+                                    {option.label}
+                                  </Button>
+                                )
+                              })}
+                            </div>
+                            <p className="text-xs text-[var(--sidebar-text-secondary)]">
+                              Horizontal padding: {activeWidgetDensityPreset.horizontalPadding}px. Vertical spacing: {activeWidgetDensityPreset.verticalSpacing}px.
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </section>
 
-                <section id="widget-theme" ref={registerWidgetSectionRef('widget-theme')} className="space-y-6 scroll-mt-6 border-t-2 border-[var(--sidebar-border-color-strong)] pt-8 pb-8">
+                <section id="widget-advanced" ref={registerWidgetSectionRef('widget-advanced')} className="space-y-8 scroll-mt-6 border-t-2 border-[var(--sidebar-border-color-strong)] pt-8 pb-8">
+                  <div className="space-y-2">
+                    <p className="text-lg font-semibold text-[var(--sidebar-text-primary)]">Advanced</p>
+                    <p className="text-sm text-[var(--sidebar-text-secondary)]">Fine-tune appearance, typography, and input styling.</p>
+                  </div>
+
+                <section id="widget-theme" className="space-y-6 scroll-mt-6">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
@@ -1495,8 +1646,13 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                             {group.id === 'surface-readability' ? (
                               <div className={`grid gap-3 py-3 ${isConfigurationCompact ? 'grid-cols-1' : 'md:grid-cols-[minmax(0,1fr)_220px] md:items-start'}`}>
                                 <div className="min-w-0 space-y-1">
-                                  <p className="font-medium text-[var(--sidebar-text-primary)]">Surface border radius</p>
-                                  <p className="text-sm text-[var(--sidebar-text-secondary)]">Set corner roundness for the whole widget surface (0 to 32px).</p>
+                                  <div className="flex items-center gap-2">
+                                    <Scan className="h-4 w-4 text-[var(--sidebar-text-secondary)]" strokeWidth={2} aria-hidden="true" />
+                                    <p className="font-medium text-[var(--sidebar-text-primary)]">Surface border radius</p>
+                                  </div>
+                                  {showFieldDescriptions ? (
+                                    <p className="text-sm text-[var(--sidebar-text-secondary)]">Set corner roundness for the whole widget surface (0 to 32px).</p>
+                                  ) : null}
                                 </div>
 
                                 <div className="space-y-3">
@@ -1786,149 +1942,7 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                   </div>
                 </section>
 
-                <section id="widget-typography" ref={registerWidgetSectionRef('widget-typography')} className="space-y-4 border-t-2 border-[var(--sidebar-border-color-strong)] pt-8 pb-8">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-lg font-semibold text-[var(--sidebar-text-primary)]">Typography</p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-8 px-3 text-sm"
-                        onClick={resetWidgetTypographySection}
-                        disabled={widgetTypography === defaultWidgetTypographyId}
-                      >
-                        Reset section
-                      </Button>
-                    </div>
-                  </div>
-
-                  <p className="text-sm text-[var(--sidebar-text-secondary)]">Choose a Google Font for the widget. Changes are applied instantly in preview.</p>
-
-                  <div className="divide-y divide-[var(--sidebar-border-color)]">
-                    <div className="grid gap-3 py-3 grid-cols-1">
-                      <div className="min-w-0 space-y-1">
-                        <p className="font-medium text-[var(--sidebar-text-primary)]">Widget font family</p>
-                        <p className="text-sm text-[var(--sidebar-text-secondary)]">Applies to all text inside the widget, including headings and form labels.</p>
-                      </div>
-
-                      <div className="w-full space-y-3">
-                        <div className="relative" ref={typographyDropdownRef}>
-                          <button
-                            type="button"
-                            className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-white px-3 py-1 text-sm text-[var(--sidebar-text-primary)] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sidebar-focus-ring)]"
-                            onClick={() => {
-                              setIsTypographyDropdownOpen((prev) => {
-                                if (prev) {
-                                  setTypographySearchQuery('')
-                                }
-                                return !prev
-                              })
-                            }}
-                            aria-label="Select widget font family"
-                            aria-expanded={isTypographyDropdownOpen}
-                            aria-haspopup="listbox"
-                          >
-                            <span style={{ fontFamily: selectedWidgetTypographyOption.fontFamily }}>{selectedWidgetTypographyOption.label}</span>
-                            <ChevronDown
-                              className={`h-4 w-4 text-[var(--sidebar-text-secondary)] transition-transform ${isTypographyDropdownOpen ? 'rotate-180' : ''}`}
-                              aria-hidden="true"
-                            />
-                          </button>
-
-                          {isTypographyDropdownOpen ? (
-                            <div
-                              className="absolute z-30 mt-1 w-full rounded-md border border-[var(--sidebar-border-color)] bg-[var(--sidebar-menu-bg)] shadow-md"
-                              role="listbox"
-                              aria-label="Widget font options"
-                            >
-                              <div className="border-b border-[var(--sidebar-border-color)] p-2">
-                                <div className="mb-2 flex flex-wrap gap-2">
-                                  {[
-                                    { id: 'all', label: 'All fonts' },
-                                    { id: 'sans-serif', label: 'Sans Serif' },
-                                    { id: 'serif', label: 'Serif' },
-                                  ].map((categoryOption) => {
-                                    const isActive = typographyCategoryFilter === categoryOption.id
-
-                                    return (
-                                      <button
-                                        key={categoryOption.id}
-                                        type="button"
-                                        className={`rounded-full border px-2 py-1 text-xs font-semibold transition-colors ${
-                                          isActive
-                                            ? 'border-[var(--sidebar-focus-ring)] bg-[var(--sidebar-item-active-bg)] text-[var(--sidebar-text-primary)]'
-                                            : 'border-[var(--sidebar-border-color)] bg-[var(--sidebar-menu-bg)] text-[var(--sidebar-text-secondary)] hover:bg-[var(--sidebar-item-hover-bg)]'
-                                        }`}
-                                        onClick={() => setTypographyCategoryFilter(categoryOption.id as 'all' | WidgetTypographyCategory)}
-                                      >
-                                        {categoryOption.label}
-                                      </button>
-                                    )
-                                  })}
-                                </div>
-
-                                <Input
-                                  value={typographySearchQuery}
-                                  onChange={(event) => setTypographySearchQuery(event.target.value)}
-                                  placeholder="Search font by name"
-                                  aria-label="Search font by name"
-                                  className="h-8"
-                                />
-                              </div>
-
-                              <div className="max-h-56 overflow-y-auto py-1">
-                                {filteredWidgetTypographyOptions.length > 0 ? (
-                                  filteredWidgetTypographyOptions.map((option) => {
-                                    const isSelected = widgetTypography === option.id
-
-                                    return (
-                                      <button
-                                        key={option.id}
-                                        type="button"
-                                        className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sidebar-focus-ring)] ${
-                                          isSelected
-                                            ? 'bg-[var(--sidebar-item-active-bg)] text-[var(--sidebar-text-primary)]'
-                                            : 'text-[var(--sidebar-text-primary)] hover:bg-[var(--sidebar-item-hover-bg)]'
-                                        }`}
-                                        style={{ fontFamily: option.fontFamily }}
-                                        onClick={() => {
-                                          setWidgetTypography(option.id)
-                                          setTypographySearchQuery('')
-                                          setIsTypographyDropdownOpen(false)
-                                        }}
-                                        role="option"
-                                        aria-selected={isSelected}
-                                      >
-                                        <span>{option.label}</span>
-                                        {isSelected ? (
-                                          <CircleCheck className="h-4 w-4 shrink-0 text-[var(--sidebar-focus-ring)]" aria-hidden="true" />
-                                        ) : null}
-                                      </button>
-                                    )
-                                  })
-                                ) : (
-                                  <p className="px-3 py-2 text-sm text-[var(--sidebar-text-secondary)]">No fonts found.</p>
-                                )}
-                              </div>
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium text-[var(--sidebar-text-primary)]">Preview</p>
-                          <p
-                            className="text-sm text-[var(--sidebar-text-primary)]"
-                            style={{ fontFamily: selectedWidgetTypographyOption.fontFamily }}
-                          >
-                            The quick brown fox jumps over the lazy dog.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                <section id="widget-input-style" ref={registerWidgetSectionRef('widget-input-style')} className="space-y-4 border-t-2 border-[var(--sidebar-border-color-strong)] pt-8 pb-8">
+                <section id="widget-input-style" className="space-y-4 border-t border-[var(--sidebar-border-color)] pt-6">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-lg font-semibold text-[var(--sidebar-text-primary)]">Input style</p>
                     <div className="flex items-center gap-2">
@@ -1949,8 +1963,13 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                   <div className="divide-y divide-[var(--sidebar-border-color)]">
                     <div className="grid gap-3 py-3 grid-cols-1">
                       <div className="min-w-0 space-y-1">
-                        <p className="font-medium text-[var(--sidebar-text-primary)]">Input type</p>
-                        <p className="text-sm text-[var(--sidebar-text-secondary)]">Switch input fields between Outline and Filled styles.</p>
+                        <div className="flex items-center gap-2">
+                          <TextCursorInput className="h-4 w-4 text-[var(--sidebar-text-secondary)]" strokeWidth={2} aria-hidden="true" />
+                          <p className="font-medium text-[var(--sidebar-text-primary)]">Input type</p>
+                        </div>
+                        {showFieldDescriptions ? (
+                          <p className="text-sm text-[var(--sidebar-text-secondary)]">Switch input fields between Outline and Filled styles.</p>
+                        ) : null}
                       </div>
 
                       <fieldset className="grid gap-3 min-w-0 w-full">
@@ -2053,10 +2072,15 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                       <div className={`grid gap-3 py-3 ${isConfigurationCompact ? 'grid-cols-1' : 'md:grid-cols-[minmax(0,1fr)_220px] md:items-start'}`}>
                         <div className="min-w-0 space-y-1">
                           <div className="flex items-start justify-between gap-3">
-                            <p className="font-medium text-[var(--sidebar-text-primary)]">Input filled surface</p>
+                            <div className="flex items-center gap-2">
+                              <Droplet className="h-4 w-4 text-[var(--sidebar-text-secondary)]" strokeWidth={2} aria-hidden="true" />
+                              <p className="font-medium text-[var(--sidebar-text-primary)]">Input filled surface</p>
+                            </div>
                             <div className={`mt-0.5 h-5 w-5 shrink-0 rounded-full border border-[var(--sidebar-border-color-strong)] ${isConfigurationCompact ? 'block' : 'md:hidden'}`} style={{ backgroundColor: widgetTheme.inputFilledSurface }} />
                           </div>
-                          <p className="text-sm text-[var(--sidebar-text-secondary)]">Background color used by inputs in Filled style.</p>
+                          {showFieldDescriptions ? (
+                            <p className="text-sm text-[var(--sidebar-text-secondary)]">Background color used by inputs in Filled style.</p>
+                          ) : null}
                         </div>
 
                         <div className="relative">
@@ -2167,8 +2191,13 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
 
                     <div className={`grid gap-3 py-3 ${isConfigurationCompact ? 'grid-cols-1' : 'md:grid-cols-[minmax(0,1fr)_220px] md:items-start'}`}>
                       <div className="min-w-0 space-y-1">
-                        <p className="font-medium text-[var(--sidebar-text-primary)]">Border radius</p>
-                        <p className="text-sm text-[var(--sidebar-text-secondary)]">Set corner roundness for widget inputs (0 to 16px).</p>
+                        <div className="flex items-center gap-2">
+                          <Scan className="h-4 w-4 text-[var(--sidebar-text-secondary)]" strokeWidth={2} aria-hidden="true" />
+                          <p className="font-medium text-[var(--sidebar-text-primary)]">Border radius</p>
+                        </div>
+                        {showFieldDescriptions ? (
+                          <p className="text-sm text-[var(--sidebar-text-secondary)]">Set corner roundness for widget inputs (0 to 16px).</p>
+                        ) : null}
                       </div>
 
                       <div className="space-y-3">
@@ -2196,33 +2225,102 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                     </div>
                   </div>
                 </section>
+                </section>
 
-                <section id="widget-density" ref={registerWidgetSectionRef('widget-density')} className="space-y-3 border-t-2 border-[var(--sidebar-border-color-strong)] pt-8">
+                <section id="widget-elements-visibility" ref={registerWidgetSectionRef('widget-elements-visibility')} className="space-y-3 scroll-mt-6 border-t-2 border-[var(--sidebar-border-color-strong)] pt-8 pb-8">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-lg font-semibold text-[var(--sidebar-text-primary)]">Density</p>
+                    <p className="text-lg font-semibold text-[var(--sidebar-text-primary)]">Elements visibility</p>
+                    <div className="flex items-center gap-2">
+                      <Button type="button" variant="outline" className="h-8 px-3 text-sm" onClick={resetElementVisibilitySection}>
+                        Reset section
+                      </Button>
+                    </div>
                   </div>
-                  <p className="text-sm text-[var(--sidebar-text-secondary)]">Temporary presets for preview widget spacing: Compact, Comfortable, Spacius.</p>
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    {widgetDensityPresetOptions.map((option) => {
-                      const isActive = widgetDensityPreset === option.id
-
-                      return (
-                        <Button
-                          key={option.id}
-                          type="button"
-                          variant="outline"
-                          aria-pressed={isActive}
-                          className={`h-9 px-4 text-sm ${isActive ? 'border-[var(--widget-color-primary)] bg-[var(--sidebar-menu-bg)] text-[var(--sidebar-text-primary)]' : ''}`}
-                          onClick={() => setWidgetDensityPreset(option.id)}
-                        >
-                          {option.label}
-                        </Button>
-                      )
-                    })}
-                  </div>
-                  <p className="text-xs text-[var(--sidebar-text-secondary)]">
-                    Horizontal padding: {activeWidgetDensityPreset.horizontalPadding}px. Vertical spacing: {activeWidgetDensityPreset.verticalSpacing}px.
+                  <p className="text-sm text-[var(--sidebar-text-secondary)]">
+                    Manage which payment options are visible in preview. At least one payment option must stay enabled.
                   </p>
+
+                  <div className="divide-y divide-[var(--sidebar-border-color)]">
+                    <div className="flex items-start justify-between gap-3 py-3">
+                      <div className="min-w-0 space-y-1">
+                        <p className="font-semibold text-[var(--sidebar-text-primary)]">Set up wallet</p>
+                        <p className="text-sm text-[var(--sidebar-text-secondary)]">Controls visibility of the wallet quick-start payment option.</p>
+                      </div>
+                      <Switch
+                        checked={elementVisibility.setUpWallet}
+                        onCheckedChange={(checked) => togglePrimaryPaymentVisibility('setUpWallet', checked)}
+                        aria-label="Toggle Set up wallet visibility"
+                        disabled={elementVisibility.setUpWallet && primaryVisibleOptionsCount <= 1}
+                      />
+                    </div>
+
+                    <div className="space-y-3 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-1">
+                          <p className="font-semibold text-[var(--sidebar-text-primary)]">Pay by new card</p>
+                          <p className="text-sm text-[var(--sidebar-text-secondary)]">Controls visibility of the option to open card form and enter new payment details.</p>
+                        </div>
+                        <Switch
+                          checked={elementVisibility.payByNewCard}
+                          onCheckedChange={(checked) => togglePrimaryPaymentVisibility('payByNewCard', checked)}
+                          aria-label="Toggle Pay by new card visibility"
+                          disabled={elementVisibility.payByNewCard && primaryVisibleOptionsCount <= 1}
+                        />
+                      </div>
+
+                      <div className="ml-4 flex items-start justify-between gap-3 py-1">
+                        <div className="min-w-0 space-y-1">
+                          <p className="font-medium text-[var(--sidebar-text-primary)]">Saved cards visibility</p>
+                          <p className="text-sm text-[var(--sidebar-text-secondary)]">Controls visibility of the saved card row above the new card form.</p>
+                        </div>
+                        <Switch
+                          checked={elementVisibility.savedCards && elementVisibility.payByNewCard}
+                          onCheckedChange={(checked) => setElementVisibility((prev) => ({ ...prev, savedCards: checked }))}
+                          aria-label="Toggle saved cards visibility"
+                          disabled={!elementVisibility.payByNewCard}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-start justify-between gap-3 py-3">
+                      <div className="min-w-0 space-y-1">
+                        <p className="font-semibold text-[var(--sidebar-text-primary)]">Pay by other methods</p>
+                        <p className="text-sm text-[var(--sidebar-text-secondary)]">Controls visibility of alternative methods such as Apple Pay, PayPal, and Google Pay.</p>
+                      </div>
+                      <Switch
+                        checked={elementVisibility.payByOtherMethods}
+                        onCheckedChange={(checked) => togglePrimaryPaymentVisibility('payByOtherMethods', checked)}
+                        aria-label="Toggle Pay by other methods visibility"
+                        disabled={elementVisibility.payByOtherMethods && primaryVisibleOptionsCount <= 1}
+                      />
+                    </div>
+
+                    <div className="flex items-start justify-between gap-3 py-3">
+                      <div className="min-w-0 space-y-1">
+                        <p className="font-semibold text-[var(--sidebar-text-primary)]">Pay by bank</p>
+                        <p className="text-sm text-[var(--sidebar-text-secondary)]">Controls visibility of the dedicated bank payment option.</p>
+                      </div>
+                      <Switch
+                        checked={elementVisibility.payByBank}
+                        onCheckedChange={(checked) => togglePrimaryPaymentVisibility('payByBank', checked)}
+                        aria-label="Toggle Pay by bank visibility"
+                        disabled={elementVisibility.payByBank && primaryVisibleOptionsCount <= 1}
+                      />
+                    </div>
+                  </div>
+
+                  {primaryVisibleOptionsCount === 1 ? (
+                    <div
+                      className="rounded-lg border px-4 py-3 text-sm"
+                      style={{
+                        borderColor: 'var(--widget-status-warning-border)',
+                        backgroundColor: 'var(--widget-status-warning-bg)',
+                        color: 'var(--widget-status-warning-text)',
+                      }}
+                    >
+                      At least one payment option must be enabled.
+                    </div>
+                  ) : null}
                 </section>
               </div>
             </section>
@@ -2312,7 +2410,7 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                         <span>Set Up Wallet</span>
                       </span>
                       <span
-                        className="absolute rounded-full bg-[var(--widget-color-primary)] px-2 py-0.5 text-[var(--widget-text-on-primary)]"
+                        className="absolute rounded-full px-2 py-0.5"
                         style={{
                           top: '50%',
                           right: isWidgetCompact ? '10px' : '12px',
@@ -2321,6 +2419,8 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                           fontSize: 'var(--widget-font-size-caption)',
                           fontWeight: 'var(--widget-font-weight-semibold)',
                           lineHeight: 'var(--widget-line-height-snug)',
+                          backgroundColor: widgetButtonStyle.type === 'filled' ? 'var(--widget-button-outline-bg)' : 'var(--widget-color-primary)',
+                          color: widgetButtonStyle.type === 'filled' ? 'var(--widget-text-primary)' : 'var(--widget-text-on-primary)',
                         }}
                       >
                         <span>10%</span>{' '}
@@ -2370,7 +2470,7 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                         </span>
                       </span>
                       <span
-                        className="absolute rounded-full bg-[var(--widget-color-primary)] px-2 py-0.5 text-[var(--widget-text-on-primary)]"
+                        className="absolute rounded-full px-2 py-0.5"
                         style={{
                           top: '50%',
                           right: isWidgetCompact ? '10px' : '12px',
@@ -2379,6 +2479,8 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                           fontSize: 'var(--widget-font-size-caption)',
                           fontWeight: 'var(--widget-font-weight-semibold)',
                           lineHeight: 'var(--widget-line-height-snug)',
+                          backgroundColor: widgetButtonStyle.type === 'filled' ? 'var(--widget-button-outline-bg)' : 'var(--widget-color-primary)',
+                          color: widgetButtonStyle.type === 'filled' ? 'var(--widget-text-primary)' : 'var(--widget-text-on-primary)',
                         }}
                       >
                         Default
@@ -2391,13 +2493,13 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                       className={`w-full border text-[var(--widget-text-primary)] transition-colors ${
                         isPayByNewCardOpen
                           ? widgetButtonStyle.type === 'outline'
-                            ? 'border-[var(--widget-color-primary)] bg-[var(--widget-color-surface)]'
+                            ? 'border-[var(--widget-color-primary)] bg-[var(--widget-button-outline-bg)]'
                             : 'border-[var(--widget-color-primary)]'
                           : widgetButtonStyle.type === 'filled'
                             ? 'border-transparent bg-[var(--widget-option-button-bg)] hover:bg-[var(--widget-option-button-bg-hover)]'
                             : widgetButtonStyle.type === 'tonal'
                               ? 'border-transparent bg-[var(--widget-option-button-tonal-bg)] hover:bg-[var(--widget-option-button-tonal-bg-hover)]'
-                              : 'border-[var(--widget-color-border)] bg-[var(--widget-color-surface)] hover:border-[var(--widget-color-primary)] hover:bg-[var(--widget-option-hover-bg)]'
+                              : 'border-[var(--widget-button-outline-border)] bg-[var(--widget-button-outline-bg)] hover:border-[var(--widget-color-primary)] hover:bg-[var(--widget-option-hover-bg)]'
                       }`}
                       style={{
                         borderRadius: isPayByNewCardOpen ? `${payByNewCardOpenRadius}px` : `${widgetButtonStyle.radius}px`,
@@ -2504,22 +2606,122 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                   ) : null}
 
                   {elementVisibility.payByOtherMethods ? (
-                    <PaymentOptionRow isCompact={isWidgetCompact} buttonType={widgetButtonStyle.type} buttonRadius={widgetButtonStyle.radius}>
-                      <span className="inline-flex w-full items-center justify-center gap-2" style={{ fontWeight: 'var(--widget-font-weight-semibold)' }}>
-                        <span>Pay by other methods</span>
-                        <span className="inline-flex items-center gap-1" aria-label="Apple Pay, PayPal, Google Pay">
-                          {otherMethodIconKeys.map((iconKey) => (
-                            <img
-                              key={iconKey}
-                              src={graphics[iconKey]}
-                              alt=""
-                              aria-hidden="true"
-                              className="h-[18px] w-[18px] rounded-[4px] object-contain"
-                            />
-                          ))}
+                    <div
+                      className={`w-full border text-[var(--widget-text-primary)] transition-colors ${
+                        isPayByOtherMethodsOpen
+                          ? widgetButtonStyle.type === 'outline'
+                            ? 'border-[var(--widget-color-primary)] bg-[var(--widget-button-outline-bg)]'
+                            : 'border-[var(--widget-color-primary)]'
+                          : widgetButtonStyle.type === 'filled'
+                            ? 'border-transparent bg-[var(--widget-option-button-bg)] hover:bg-[var(--widget-option-button-bg-hover)]'
+                            : widgetButtonStyle.type === 'tonal'
+                              ? 'border-transparent bg-[var(--widget-option-button-tonal-bg)] hover:bg-[var(--widget-option-button-tonal-bg-hover)]'
+                              : 'border-[var(--widget-button-outline-border)] bg-[var(--widget-button-outline-bg)] hover:border-[var(--widget-color-primary)] hover:bg-[var(--widget-option-hover-bg)]'
+                      }`}
+                      style={{
+                        borderRadius: isPayByOtherMethodsOpen ? `${payByOtherMethodsOpenRadius}px` : `${widgetButtonStyle.radius}px`,
+                        boxShadow: isPayByOtherMethodsOpen
+                          ? `0 0 0 var(--widget-form-ring-width) hsl(var(--primary) / var(--widget-form-ring-opacity))`
+                          : 'none',
+                      }}
+                    >
+                      <PaymentOptionRow
+                        isCompact={isWidgetCompact}
+                        buttonType={widgetButtonStyle.type}
+                        buttonRadius={widgetButtonStyle.radius}
+                        useFilledTextColors={!isPayByOtherMethodsOpen && widgetButtonStyle.type === 'filled'}
+                        withBorder={false}
+                        hoverable={false}
+                        className="w-full"
+                        style={{
+                          borderRadius: isPayByOtherMethodsOpen ? `${payByOtherMethodsOpenRadius}px` : `${widgetButtonStyle.radius}px`,
+                        }}
+                        onClick={() => setIsPayByOtherMethodsOpen((prev) => !prev)}
+                        ariaExpanded={isPayByOtherMethodsOpen}
+                        ariaControls="widget-pay-by-other-methods-list"
+                      >
+                        <span className="inline-flex w-full items-center justify-center gap-2" style={{ fontWeight: 'var(--widget-font-weight-semibold)' }}>
+                          <span>Pay by other methods</span>
+                          <span className="inline-flex items-center gap-1" aria-label="Apple Pay, PayPal, Google Pay">
+                            {otherMethodIconKeys.map((iconKey) => (
+                              <img
+                                key={iconKey}
+                                src={graphics[iconKey]}
+                                alt=""
+                                aria-hidden="true"
+                                className="h-[18px] w-[18px] rounded-[4px] object-contain"
+                              />
+                            ))}
+                          </span>
                         </span>
-                      </span>
-                    </PaymentOptionRow>
+                      </PaymentOptionRow>
+
+                      {isPayByOtherMethodsOpen ? (
+                        <div
+                          id="widget-pay-by-other-methods-list"
+                          className="flex flex-col"
+                          style={{
+                            gap: 'var(--widget-density-gap)',
+                            padding: '0 var(--widget-density-padding-inline) var(--widget-density-padding-inline)',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="inline-flex w-full items-center justify-center gap-2 border transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--widget-color-primary)]"
+                            style={{
+                              height: 'var(--widget-control-height-button)',
+                              borderRadius: `${widgetButtonStyle.radius}px`,
+                              backgroundColor: 'var(--widget-brand-apple-pay-bg)',
+                              color: 'var(--widget-brand-apple-pay-text)',
+                              borderColor: 'var(--widget-brand-apple-pay-border)',
+                              fontSize: 'var(--widget-font-size-body)',
+                              fontWeight: 'var(--widget-font-weight-semibold)',
+                            }}
+                          >
+                            <span>Pay with</span>
+                            <img src={graphics.applePayIcon} alt="" aria-hidden="true" className="h-[18px] w-[18px] rounded-[4px] object-contain" />
+                            <span>Pay</span>
+                            <span className="sr-only">Apple Pay</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            className="inline-flex w-full items-center justify-center gap-2 border transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--widget-color-primary)]"
+                            style={{
+                              height: 'var(--widget-control-height-button)',
+                              borderRadius: `${widgetButtonStyle.radius}px`,
+                              backgroundColor: 'var(--widget-brand-paypal-bg)',
+                              color: 'var(--widget-brand-paypal-text)',
+                              borderColor: 'var(--widget-brand-paypal-border)',
+                              fontSize: 'var(--widget-font-size-body)',
+                              fontWeight: 'var(--widget-font-weight-semibold)',
+                            }}
+                          >
+                            <img src={graphics.payPalIcon} alt="" aria-hidden="true" className="h-[18px] w-[18px] rounded-[4px] object-contain" />
+                            <span>PayPal</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            className="inline-flex w-full items-center justify-center gap-2 border transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--widget-color-primary)]"
+                            style={{
+                              height: 'var(--widget-control-height-button)',
+                              borderRadius: `${widgetButtonStyle.radius}px`,
+                              backgroundColor: 'var(--widget-brand-google-pay-bg)',
+                              color: 'var(--widget-brand-google-pay-text)',
+                              borderColor: 'var(--widget-brand-google-pay-border)',
+                              fontSize: 'var(--widget-font-size-body)',
+                              fontWeight: 'var(--widget-font-weight-semibold)',
+                            }}
+                          >
+                            <span>Pay with</span>
+                            <img src={graphics.googlePayIcon} alt="" aria-hidden="true" className="h-[18px] w-[18px] rounded-[4px] object-contain" />
+                            <span>Pay</span>
+                            <span className="sr-only">Google Pay</span>
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
                   ) : null}
 
                   {elementVisibility.payByBank ? (
@@ -2545,7 +2747,7 @@ export function WidgetDesignPage({ section = 'merchants' }: WidgetDesignPageProp
                     Edit Payment Methods
                   </Button>
 
-                  <Separator className="my-2" />
+                  <Separator className="my-2" style={{ backgroundColor: 'var(--widget-color-border)' }} />
 
                   <small
                     className="block text-center text-[var(--widget-text-muted)]"
